@@ -1,0 +1,18 @@
+{
+  "format": 2,
+  "source": {
+    "release": "r20250816",
+    "url": "https://github.com/KanjiVG/kanjivg/releases/download/r20250816/kanjivg-20250816-main.zip",
+    "sha256": "69a2944ec1183086fdee5ba9c1f48bc306b867480a95b2f337f3203bf50689a3"
+  },
+  "artifact": {
+    "path": "data/kanjivg.json",
+    "bytes": 5855089,
+    "sha256": "ff95f0edf9eb6ca2de9b5300f81724beafaa7d2dcce07c49b22f6add373f372e"
+  },
+  "familyArtifact": {
+    "path": "data/kanji-families.json",
+    "bytes": 192623,
+    "sha256": "0527ca5c4e810341a34333979829aedfd71b5764efa1c1887e394f3532318425"
+  }
+}

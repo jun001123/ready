@@ -1,0 +1,15 @@
+{
+  "name": "kotoba-lab",
+  "version": "10.49.7",
+  "private": true,
+  "description": "Japanese reading, kanji exploration, and study \u2014 browser tool. This manifest exists only to run the tests; the app itself has no build step and no dependencies.",
+  "type": "module",
+  "scripts": {
+    "start": "node serve.mjs",
+    "serve": "node serve.mjs --no-open",
+    "test": "node --test \"js/*.test.js\"",
+    "kanjivg:build": "node tools/build-kanjivg.mjs",
+    "kanjivg:check": "node tools/build-kanjivg.mjs --check"
+  },
+  "license": "MIT"
+}

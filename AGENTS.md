@@ -1,0 +1,1735 @@
+# Kotoba Lab agent guide
+
+## Current release and backlog
+
+- **v10.49.2 current.** The version now shows at the foot of Settings
+  (`#app-version`, "Kotoba Lab v10.49.2"), so the Play Store install can be
+  checked against the latest release. The text is set from `APP_VERSION` in
+  `js/app.js`, never typed into `index.html`, so a bump changes it for free.
+- **v10.49.1.** Radical Tree layout fixes found in a pre-release
+  sweep. All three predate v10.49.0.
+  - Phones: `.kt-body`'s one-column grid was `1fr`, which cannot shrink below
+    its widest unbroken line, so a long "Appears in" gloss made the overlay
+    ~480px wide on a 390px screen ("Replay strokes" cut off). Now
+    `minmax(0, 1fr)`, and the same for `.kt-info-words`.
+  - "Appears in" rows: the gloss had an ellipsis but no `min-width: 0`, so it
+    never shrank; 大学 broke onto two lines and the buttons left the row. The
+    word never shrinks, the reading is capped at 35% of the row, and the
+    gloss takes what is left.
+  - Header: with Back hidden, auto-placement put the title in column 1 and
+    Close in the middle. `.kt-heading` and `.kt-close` now have fixed columns.
+- **v10.49.0.** UI polish and bug fixes before a Play Store update.
+  No new features. Bugs fixed:
+  - Phone tab bar: the edge fades were `position: absolute` inside the bar,
+    which is its own scroll container, so they scrolled with the tabs and
+    washed out the middle of the bar (usually the active tab). Now sticky
+    flex items with negative margins.
+  - Review's phone layout for the "Today" card keyed off
+    `#review-panel > .card:first-child`, but the weather card was later put
+    above it, so the rule never matched. Now `.srs-today`.
+  - `[hidden]` was beaten by an element's own `display` in three places:
+    the grammar-layer legend (shown even with the layer off), `.btn`
+    (Mix families stayed visible when ineligible), and `.kt-body`.
+  - ♡ buttons on kanji cards and word rows had no base style and rendered
+    as raw browser buttons. They now share the Known/Save pill style.
+  - Read info sheet said "no reading/meaning" for ungraded dictionary words
+    while showing their reading and meaning. It now says
+    "Dictionary word, not on a JLPT list."
+  - "1 strokes", "1 words", "1 days" now singular (`plural()` in app.js,
+    inline in the self-contained view modules).
+  UI changes: phone text box puts Import and Clear on one row under a
+  full-width sample strip; phone Read legend wraps instead of hiding past
+  the card edge; Alchemy jar labels fit on phones; phone word rows use one
+  fixed two-line grid; phone Word Lookup filters sit two per row; desktop
+  Kanji library puts JLPT levels, Favorites and Build from components on
+  one row; Reset filters matches the select height; "Any" readability
+  option reads "Readable or not". `APP_VERSION` bumped to 10.49.0.
+- **v10.48.0.** **Counters** is ✓ Done, from the idea garden's own
+  "Counters, for free" entry (added the same session): a `kind: all | counter`
+  filter in Word Lookup that finds every vocabulary entry whose own dictionary
+  gloss says "counter for…". Confirmed by hand before writing any code: 44
+  entries in `data/jlpt-vocab.json` carry the phrase.
+  New pure `hasCounterSense(gloss)`/`counterGloss(gloss)` in
+  `js/word-browser.js`: glosses are semicolon-separated senses, so a kanji
+  whose OTHER senses are entirely unrelated to counting still matches
+  correctly on the one clause that is — 乗's first sense is "(nth) power", not
+  its counter-for-vehicles sense three clauses later; 門's is "gate", not
+  "counter for cannons". `counterGloss()` shows only the matching clause(s),
+  joined, in place of the word's usual (often irrelevant) first sense — 丁's
+  entry is four unrelated counted-object categories with no non-counter sense
+  at all, and picking only the first would have hidden three of the four.
+  `wordRowMarkup()` gained an optional third `glossOverride` argument for
+  exactly this; every existing call site is unaffected since none pass one.
+  DELIBERATELY NOT CURATED: all 44 are shown, nothing hand-picked out as
+  "too obscure" or "too archaic" (some clearly are, e.g. 門's cannon-counting
+  sense) — see AGENTS.md's Word Lookup conventions below for why a curated
+  subset would have been inventing a judgment this project has refused
+  everywhere else. `searchWords()`'s `kind` option composes with `term`,
+  `level`, and `readable` exactly like every other filter, and the honest
+  count line says outright what the filter actually is ("every dictionary
+  sense that says 'counter for…', not a curated top list") so nobody mistakes
+  it for a textbook's chosen-for-you list. One pre-existing CSS bug fixed
+  along the way: `.wl-controls .select` set `flex: 0 0 auto` but never
+  overrode `.select`'s own base `width: 100%` (`ui-base.css`), which
+  `flex-basis: auto` defers to — so `#wl-level` and `#wl-readable` were
+  already stacking onto their own full-width rows instead of sitting inline
+  with the search box; adding a third select (`#wl-kind`) just made the
+  three-row stack impossible to miss. `APP_VERSION` bumped to 10.48.0.
+- **v10.47.0.** "Appears in" (Read info panel, Radical Tree) is
+  ✓ Done becoming a real recommended-words section: it always showed words
+  containing the current kanji, easiest first, but only had a known toggle —
+  no way to save one, and no way to reach the words that didn't fit the cap
+  of 6. `wordsContaining()` in `js/compound-words.js` now returns `{ total,
+  words }`, matching the shape `unlockedBy()` and `buildReadableCompounds()`
+  already use in the same file, instead of a bare capped array — so every
+  caller can say "6 of 58" without a second pass over the vocabulary. Three
+  call sites updated (`infoWordsMarkup`, the Radical Tree's `wordsFor`,
+  `kanji-mystery.js`'s clue picker), all mechanical.
+  Both surfaces gained a compact ☆/★ save toggle beside the known toggle,
+  reusing the deck's existing "no sentence, no context" save shape (see
+  Vocabulary conventions) — `infoWordsMarkup`'s reuses the document-level
+  `data-compound-save` handler directly (same module, same DOM tree), and the
+  Radical Tree's is threaded through as `isWordSaved`/`toggleWordSaved`/
+  `onWordSavedChange`, mirroring the `isWordKnown`/`toggleWordKnown`/
+  `onWordKnownChange` triple already there — the overlay is injected content
+  living in `document.body`, so it needs its own click handling exactly the
+  way the known toggle already does, not the delegated one.
+  When the total exceeds what's shown, a "See all N words →" line now opens
+  the Word Lookup tab pre-filled with that kanji and its filters reset — no
+  second paginated list was built; `matchesWordQuery()`'s plain substring
+  match already returns every word containing that kanji. The Radical Tree's
+  version closes the overlay first (`onSeeAllWords`), the same pattern
+  `onOpenRelationships` already uses for `.kt-relationships`.
+  One asymmetry worth knowing, not fixed: `wordsContaining()` excludes the
+  bare kanji itself from its total (a word cannot "contain" only itself), so
+  its count can read one lower than Word Lookup's own count for the same
+  glyph, which counts the bare kanji as a legitimate substring hit. Both
+  totals are correct for what each function promises; they just promise
+  slightly different things. `APP_VERSION` bumped to 10.47.0.
+- **v10.46.0.** **Favorites and the Shelf** are ✓ Done — the first
+  thing in Kotoba Lab that is not about progress. Until now every mark the
+  application offered was a progress mark: *known* means "I have learned this",
+  *saved* means "make me practise this", and the deck, Review, coverage, and
+  Achievements all count. A favorite means only "I like this". A kanji you
+  cannot read yet can be one; nothing schedules it, nothing counts it toward
+  coverage or an achievement, and no journal event records it. See
+  `IDEA_GARDEN.md` section A for the reasoning and the rest of that direction.
+  Two new `localStorage` keys (the seventh and eighth), `favorite-kanji` and
+  `favorite-words`, both from the existing generic `createKnownSet(key)` — split
+  for exactly the reason known-state is split: 水 the kanji you like the shape
+  of and 水 the word you like are different marks. **Favorites are carried in
+  profile backups by owner decision** (`BACKUP_VERSION` 3 → 4): they are the one
+  collection here that cannot be re-derived, since a known list comes back by
+  studying and a deck comes back by reading, but nothing reconstructs which
+  kanji someone liked. Merge unions them like the known sets and never
+  un-keeps — there is no timestamp to tell a deliberate removal from a device
+  that simply never had it, so the safe direction is to keep both. v1–v3 files
+  import as having kept nothing, which is not an error, and a profile holding
+  *only* favorites is no longer rejected as empty. The heart appears on the Read
+  info panel (kanji and word), the Kanji library card (icon-only — the row
+  already carries two labelled buttons), and every surface drawing
+  `wordRowMarkup()`. The Shelf has two forms on purpose: a **Favorites filter**
+  over the Kanji library's existing grid (the cheap reuse test this file's
+  section A asks for first — it intersects with the component picker's candidate
+  set through `filterKanji`'s single `chars` option), and a **Favorites card in
+  the Deck tab**, which exists because favorites span two types and no single
+  existing grid can show them together. Both reuse `kanjiCard()` and
+  `wordRowMarkup()` rather than inventing a layout, and the card shows a count
+  and never a target — no "of", no percentage, no empty slots implying what
+  should fill them. Newest first, which `createKnownSet`'s insertion order gives
+  for free. One pre-existing bug fixed along the way: the local-data dashboard
+  renders its per-category Clear buttons into `#profile-categories`, which lives
+  in the Settings panel, but `onMyWordsClick` — which owns
+  `[data-profile-clear]` — was bound only to `#words-panel` and
+  `#mywords-panel`, so those buttons had never worked. `APP_VERSION` bumped to
+  10.46.0.
+- **v10.45.1.** Deep-linking a tab no longer runs its renderer
+  before the data exists. `applyInitialRoute()` was called synchronously right
+  after `boot()`, which is `async` — so at that moment no dictionary had
+  loaded, `jlpt` was still undefined, and `wireUi()` had not attached a single
+  handler. Landing on `#review` with a saved deck threw outright
+  (`renderStage()` asks `jlpt.kanjiInfo()` for every kanji on the card, and it
+  does so whether or not the card is revealed); the other tabs survived only
+  because their renderers happen to guard on an empty catalog. The route is now
+  claimed in two halves: `claimInitialRoute()` stays synchronous, because the
+  history entry needs no data and must exist even when the dictionaries fail to
+  load, and `applyInitialRoute(tab)` moves to the tab at the END of `boot()`'s
+  success path, after every renderer has its data and the handlers are
+  attached. On the failure path `boot()` has already returned, so a deep link
+  can no longer land on a tab that cannot work. Verified across `#review`
+  (with and without a deck), `#kanji`, `#words`, `#relations`,
+  `#achievements`, and a bare load, with the single-history-entry behaviour
+  (back from the entry point leaves the app) unchanged. Fixes a bug that
+  predates the second exploration track. `APP_VERSION` bumped to 10.45.1.
+- **v10.45.0.** **Daily Mystery** is ✓ Done: the parked "Kanji
+  Mystery Casebook" seed narrowed until it has an ending. One date-seeded
+  kanji, five clues released one at a time, a guess allowed after any of them.
+  New pure, tested `js/kanji-mystery.js`. Every clue is a committed dictionary
+  fact — stroke count, JLPT grade, canonical KanjiVG radical, a dictionary
+  reading, and a real vocabulary entry with the kanji itself blanked to ◯ —
+  so the puzzle cannot mislead even by accident; nothing characterises a kanji
+  in words of its own. Clue kinds and order are FIXED (vaguest first: a stroke
+  count leaves hundreds of candidates, a masked word leaves almost none) rather
+  than adaptive, so one day's path means the same thing as another's.
+  Two pool filters were added after seeing real output, and both are data
+  requirements rather than difficulty judgments. (1) A kanji that IS its own
+  canonical radical — 一, 口, 木, 人 and 121 others — is excluded, because clue
+  three would read "its canonical radical is 木" and the puzzle would be over;
+  losing some of the commonest kanji in the language is the honest cost of a
+  clue order that stays fair. (2) A kanji must appear in at least 8 committed
+  vocabulary entries: the fifth clue picks a word at random and one or two
+  candidates make it nearly fixed. That second filter also fixed a real
+  fairness problem — at 2 words the eligible pool was 48% N1, which is a
+  lottery rather than a deduction; at 8 the 688 eligible kanji are about two
+  thirds N5–N3. The skew is a consequence of how the committed vocabulary is
+  distributed, not a difficulty scale invented here. 688 kanji is ~1.9 years
+  before a repeat, and a scripted year of dates produced zero clue leaks.
+  Guessing reuses the library's own `filterKanji()`, so deducing the answer is
+  the same act as looking a kanji up — type a meaning, a reading, or paste the
+  glyph. Enter guesses only when the search has narrowed to exactly ONE
+  candidate: a guess costs a clue, and firing the first of eight silently would
+  spend one by accident (the candidates are ordinary buttons, so Tab-then-Enter
+  still reaches any of them). A wrong guess opens the next clue rather than
+  just saying no; a repeated guess costs nothing, so a mis-tap is not a
+  penalty. The card lives collapsed at the TOP of the Kanji tab — not buried
+  below the results like the False-Friend Museum, because a daily's whole
+  purpose is being a reason to open the application, and not as a tab, per this
+  file's first selection principle. State is session-only, exactly like
+  Alchemy's Today's Brew: no storage key, no streak, no history, no win rate,
+  and a reload starts today's kanji over. The share line is deliberately marks
+  only (`◆◆◇◇◇`, plus ✕ when unsolved) with no kanji, reading, meaning, or
+  score — the shape of one day's path, with nothing anywhere for it to
+  accumulate into. The opt-in journal gained one fixed `study.mystery` event.
+  `APP_VERSION` bumped to 10.45.0 (cached CSS/JS changed).
+- **v10.44.0.** The two largest seeds of the second Idea Garden
+  track, both of which close an axis the application had no presence on at all.
+  (1) **Writing Lab** is ✓ Done as a "Practise writing" mode inside the
+  existing Radical Tree overlay — the first thing in Kotoba Lab that asks the
+  learner to *produce* a kanji rather than recognise one. New pure, tested
+  `js/writing.js` grades order, direction, placement, and count, and
+  deliberately NOT shape: a stroke is reduced to its two endpoints, so a wild
+  line between the right start and the right end passes. That is the honest
+  boundary — measuring how closely a drawn curve follows the real one is a
+  similarity judgment, the same kind the phonetic-signal and false-friend work
+  refuses to invent, and order/direction is both the part learners actually get
+  wrong and the part KanjiVG states outright. A wrong stroke never advances
+  (committing it would leave the drawing itself wrong), reversal is detected on
+  relative distance rather than the tolerance so it survives a stroke shorter
+  than one tolerance circle, and the default tolerance is ~22% of the 109-unit
+  box because a fingertip is a blunt instrument and a fussy grader teaches
+  nothing. Feedback is a comparison, not a score: "Stroke 3 runs the other way:
+  it starts at top left." In `js/kanjitree.js` the surface is a second SVG
+  sharing the glyph's viewBox, so a pointer position needs nothing but
+  `getScreenCTM()`; endpoints come from `getPointAtLength()` on a temporarily
+  attached path (exact, and no SVG path parser to write or test). Earned
+  strokes redraw as the real KanjiVG path rather than the learner's own line —
+  watching the kanji assemble is the reward — and a rejected stroke lingers a
+  moment as dashed evidence beside the sentence saying what was expected. An
+  optional outline guide, a hint that is counted separately from a miss, undo,
+  and restart round it out. Everything is session-only: no storage key, no
+  profile field, no journal event, and drilling into a component, going back,
+  or closing the overlay all end the session, since each means a different set
+  of strokes. One SVG gotcha worth keeping: `hidden` is an **HTMLElement**
+  property, so `svg.hidden = false` silently sets a JS expando and leaves the
+  element hidden — `toggleAttribute('hidden', …)` is the only thing that works.
+  (2) **Grammar X-ray** is ✓ Done. `mapTokens()` in
+  `js/tokenizer-kuromoji.js` had always computed a part of speech, a dictionary
+  form, and an inflection label and then discarded all three at the Token
+  boundary; the shared Token shape now documents four OPTIONAL morphology
+  fields (`pos`, `posDetail`, `lemma`, `conjugation`) that the v1 segmenter
+  leaves absent, so the swappable-tokenizer contract in `js/tokenizer.js` is
+  untouched. New pure, tested `js/grammar.js` is the only reader of those tags
+  anywhere in the application: it translates IPADIC's closed top-level 品詞 set
+  into plain English, reports `conjugated` as a comparison against the lemma
+  (never "past tense" — that is a claim about Japanese, not about the
+  analysis), and builds a whole-text profile. Three surfaces use it. The Read
+  info panel gains a Grammar row showing 読ん ← 読む plus IPADIC's own
+  inflection label; `pos_detail_1` is deliberately NOT rendered, since it is
+  almost always 自立 for a verb and would need translating for a particle,
+  which is where describing a tagset turns into teaching grammar. The Read
+  toolbar gains an optional grammar layer marking particles and auxiliaries
+  only — two tints from the palette's declared secondary (indigo), not a hue
+  per part of speech, because red already means "unknown / above your level"
+  here and the JLPT ramp owns difficulty. Analyze gains a Grammar profile card:
+  parts of speech, the particles a text leans on, and every inflected word with
+  its dictionary form. All three report their own absence on the instant
+  tokenizer rather than drawing an empty chart, which turns the 18 MB precise
+  tokenizer from a chore into an unlock. `APP_VERSION` bumped to 10.44.0
+  (cached CSS/JS changed).
+- **v10.43.0.** Two quick wins from the second Idea Garden
+  exploration track (see `IDEA_GARDEN.md`), both chosen because the data they
+  need was already committed and already loaded.
+  (1) **Context-First Cards** is ✓ Done as a third `#srs-direction` option,
+  "Fill the sentence", not a new mode, feature, or tab. Deck entries have
+  stored `sentence`/`sentenceStart`/`sentenceEnd` since v5 and `renderStage()`
+  already drew them as `.srs-context` on the back of the card; cloze promotes
+  that same block to the front with the word withheld. `js/context.js` gained
+  pure, tested `clozeParts()`, which is `contextParts()` plus the two refusals
+  that matter: an entry whose offsets no longer locate the word (there is
+  nothing to blank — `contextParts()` deliberately degrades to an
+  unhighlighted sentence there), and one whose sentence has no kana or kanji
+  left outside the blank, so 本。 does not become a box and a full stop. The
+  "one readable character" rule is deliberately not a punctuation blocklist:
+  「」 are no more of a clue than 。 is. `isRecall()` in `js/app.js` became
+  `cardMode()` returning `recognition | recall | cloze`, since direction is now
+  three-way; every mode still degrades to recognition rather than refusing a
+  card, and the card meta says which of the two things the entry is missing
+  ("no sentence saved" / "no meaning saved") instead of silently showing an
+  ordinary face. The gloss rides along on the cloze front as the clue —
+  without it the prompt is "some word goes here", which most sentences answer
+  more than one way. Direction remains a way of *viewing* one card: no second
+  schedule, no new storage key, no change to `js/srs.js`.
+  (2) **Component Lookup** is ✓ Done as a collapsible "Build from components"
+  picker in the Kanji toolbar, from new pure, tested `js/component-lookup.js`.
+  It reads the same 192 KB `data/kanji-families.json` the structural family
+  views already load, so opening the picker is what pays for it and the
+  library still boots without touching either KanjiVG artifact. ONE
+  DELIBERATE DIFFERENCE from the "Shared component families" view, which is
+  direct-components-only: this index is transitive. 語's direct components are
+  言 and 吾, but 口 is plainly visible in it and a learner picking shapes off
+  the page cannot know which level of the tree a shape sits on, so components
+  are expanded through their own entries (6 ms over the whole corpus, ~4.9
+  components per kanji). Selections intersect rather than union —
+  木 + 目 + 心 → 想 — and `usableComponents()` dims (not hides) every shape
+  that cannot co-occur with the current selection, so a dead end such as
+  魚 + 言 is visible before it is chosen; a selected chip is never dimmed,
+  since it has to stay clickable to be undone. The picker is ordered by how
+  many kanji use each shape, which is a fact this index can count, unlike
+  "importance"; ties break by code point so it never reshuffles between
+  builds. `filterKanji()` gained a `chars` option (a Set, or null for "no such
+  filter" — an empty Set means one is active and nothing survived it) and the
+  picker composes with search, level, stroke, and known filters unchanged.
+  Chip search matches the glyph or, where the component is itself a
+  dictionary kanji (1,263 of 1,431 are), its meaning. The remaining 168 are
+  variant shapes — 氵, 艹, ⻖ — and they are deliberately NOT given their
+  parent's meaning: 氵 co-occurs with canonical radical 水 in 317 of 329
+  kanji, and turning 96% into "氵 means water" is exactly the kind of
+  threshold judgment this app does not make. They are reachable by browsing
+  instead, which frequency ordering already puts at the top of the grid (氵 is
+  the second chip), and the empty-state says so. Selection is ephemeral: no
+  storage key, no journal event, and `resetKanjiBrowser()` clears it.
+  Closing the picker deliberately keeps the selection — silently widening the
+  results on collapse is a worse surprise than a badge on a closed panel.
+  One adjacent CSS fix came with it: `.kanji-filter-count` sets its own
+  `display`, which outranks the UA rule for the `hidden` attribute, so both
+  badges stayed on screen reading "0" — visible on phones, where the "More
+  filters" toggle they sit on is the only one shown. `APP_VERSION` bumped to
+  10.43.0 (cached CSS/JS changed).
+- **v10.41.0.** The False-Friend Museum's first bounded exhibit is
+  ✓ Done, shipped directly by owner request rather than from observed study
+  friction: a new "False-Friend Museum" card at the bottom of the Words tab
+  covers the homophones exhibit type from `IDEA_GARDEN.md`'s parked idea —
+  words sharing one dictionary reading but not one meaning, the classic
+  取る・執る・捕る・採る (all とる) kind of trap. New pure, tested
+  `js/false-friends.js`: `buildHomophoneGroups()` groups committed
+  multi-character vocab by exact reading match (bare single-kanji entries
+  are excluded — that overlap is already the Kanji library's reading-family
+  view), capped at 2–4 distinct-meaning members and sorted by graded-member
+  count, mirroring `buildContrastSets()` in `kanji-labs.js` closely enough
+  to read as the same kind of lab. `homophoneQuestion()`/
+  `answerHomophoneQuestion()` build one meaning-matching question — reading
+  can never be the clue, since it is identical across every choice by
+  construction. `renderFalseFriendMuseum()` in `js/app.js` renders the
+  current exhibit's quiz strip plus every member via the existing
+  `wordRowMarkup()`, so Known/Save work with no new wiring. Exhibit choice,
+  question, answer, and score are ephemeral session state — no storage key
+  — picked with `Math.random()` rather than a date-seeded "today's exhibit"
+  the way Alchemy's brew is, since this is a lighter, exploratory browsing
+  card rather than a daily habit loop. Deliberately scoped to homophones
+  only: similar-looking kanji is already the existing Kanji Contrast Lab
+  (shared direct visual component), and deceptive-shared-components and
+  near-synonym-trap exhibits stay unbuilt, since both would require
+  inventing a visual- or semantic-closeness judgment this app otherwise
+  never makes — see the reasoning kept in `IDEA_GARDEN.md`'s own entry. The
+  opt-in journal gained one new fixed `study.falsefriends` event, recorded
+  on each answered question; it is not yet wired into any Insights feature
+  group. `APP_VERSION` bumped to 10.41.0.
+- **v10.40.0.** Known-toggle parity pass is ✓ Done: an audit of every
+  surface that displays a word (not the compound/lookup rows already fixed
+  in the reading-forms pass) found three real gaps and one deliberate
+  non-gap. (1) The Read info panel's "Appears in" list (`infoWordsMarkup()`
+  in `js/app.js`) had no action at all — not even Save — despite being a
+  place a learner routinely recognizes a word they already know. Each row
+  now carries a compact `.info-word-known` ✓/○ toggle (`[data-word-known]`,
+  same delegated handler compounds/lookup already use — no new JS wiring)
+  sized down from the full `.compound-known` pill to fit the panel's
+  existing dense baseline-aligned row. Toggling it re-invokes
+  `showInfo(lastSel)` afterward, the same "refresh button state" pattern
+  `onInfoAction()`'s own known/save buttons already use, since
+  `refreshKnownEverywhere()` doesn't know to redraw `#info` on its own. (2)
+  The Radical Tree overlay has its own separate "Appears in" list
+  (`treeWordsMarkup()` in `js/kanjitree.js`, injected via `wordsFor` — the
+  overlay keeps no dictionary of its own) and had the identical gap.
+  `createKanjiTree()` gained `isWordKnown`/`toggleWordKnown`/
+  `onWordKnownChange` options, mirroring the `isKnown`/`toggleKnown`/
+  `onKnownChange` the overlay's own kanji-known button already used; the new
+  `.kt-word-known` button and its click handling exactly parallel `.kt-known`
+  rather than reusing the Read panel's `[data-word-known]` delegated
+  handler, since the overlay is injected content living in `document.body`
+  and reusing that same attribute would have fired both handlers on one
+  click. (3) The Review card had no way to mark the word being studied known
+  — grading buttons and kanji-chip doorways, but nothing for the flashcard's
+  own surface. `renderStage()` now reuses `knownBtn()` (the same button the
+  Read info panel renders) in a `.srs-actions` row on the revealed back; a
+  new `.act-known` branch in `onReviewClick()` toggles `knownWords` for
+  `queue[0].entry.surface` and calls `refreshKnownEverywhere()`, which
+  already rebuilds the queue/stage — no separate re-render needed. (4) Text
+  Journey's per-step word list (`journeyWords()`) stays read-only
+  deliberately, not a missed spot: Text-to-Study Journey conventions already
+  state "Mark known is the only persistent action" for that ephemeral
+  feature, referring to the kanji being studied, and it already has that
+  button — adding one for the words too would contradict a documented
+  design choice, not close a gap. `APP_VERSION` bumped to 10.40.0 (cached
+  CSS/JS changed).
+- **v10.39.0.** Bottom-bar scroll affordance is ✓ Done: `.tabs` gets
+  a left/right edge fade hinting there's more to swipe to, but only when
+  that's actually true. Drawn as `.tabs::before`/`::after` overlays (not a
+  `mask-image` on `.tabs` itself, which would fade the bar's own opaque
+  background/blur along with the tabs and leave a see-through strip at each
+  edge) toggled by `updateTabsScrollFade()` in `js/app.js` via `can-scroll-
+  left`/`can-scroll-right` classes. That check compares the first/last
+  `.tab`'s own bounding box against the bar's, not `scrollLeft` against
+  `scrollWidth - clientWidth` — the bar's `scroll-snap-align: center` means
+  the resting scroll position for the last tab already stops short of that
+  raw max, so a scroll-offset comparison left the right-edge fade stuck on
+  even with Settings fully in view. Wired to the bar's own `scroll` event
+  plus `resize`/`load` (a web font still swapping in can nudge label widths
+  enough to change whether the bar overflows at all), so a ~900px tablet
+  where all eleven tabs already fit never shows either fade. `APP_VERSION`
+  bumped to 10.39.0 (cached CSS/JS changed).
+- **v10.38.0.** Two small follow-ups from the reading-forms pass are
+  ✓ Done. (1) Switching Read's `#read-view` to kana or romaji used to render
+  plain `textContent`, losing tap-to-inspect entirely. `renderReading()` in
+  `js/read.js` now takes a `mode` parameter and keeps the exact same
+  `.tok.word`/`[data-k]` click targets and token data in every mode — only
+  what a word visually shows changes (kanji+furigana, plain kana, or
+  romaji); an unmatched kanji run still shows and stays clickable as the
+  original glyphs in every mode, since there's no reading to substitute.
+  Getting romaji right required a real fix, not just plumbing: converting
+  each token's reading independently would get a sokuon or ん wrong right at
+  a token boundary (the mora that disambiguates it can belong to the next
+  token). `reading-forms.js` gained `kanaToRomajiSegments()`, which joins
+  all segments, converts once through a shared `romajiSteps()` core, then
+  cuts the result back apart at the original lengths — so the interactive
+  view and the whole-text copy button/`tokensToRomaji()` stay byte-identical
+  at every boundary. `kanaToRomaji()` itself is unchanged (same output),
+  now implemented in terms of `romajiSteps()` too. (2) The Anki TSV export
+  (Analyze tab) gained an opt-in `#flash-romaji` checkbox appending a sixth
+  trailing column via `kanaToRomaji(reading)`. Opt-in and trailing
+  specifically so the default export stays byte-identical five fields —
+  `toTSV()`'s existing "same column count regardless of source" invariant
+  now reads as "same column count for a given `romaji` option," and an Anki
+  note type already mapped to the five-field form keeps working unchanged.
+  Empty when a row has no reading, same "never invent it" rule the whole
+  reading-forms pass follows. `APP_VERSION` bumped to 10.38.0.
+- **v10.37.0.** Mobile one-menu pass is ✓ Done, from real usage
+  feedback that the phone/tablet layout carried two separate menus — a fixed
+  bottom tab bar plus a second icon row sharing the sticky header. Below
+  1081px the header is now branding-only and every destination (the six
+  former primary tabs plus Alchemy, Deck, Achievements, Insights, and
+  Settings) lives in one `.tabs` bar fixed to the bottom of the viewport,
+  horizontally scrollable/swipeable with scroll-snap and a `switchTab()`-
+  driven `scrollIntoView` so navigating to an off-screen destination slides
+  the bar to reveal it. Tablet (781–1080px) now shares this exact layout
+  instead of its own inline-pill-in-header state — one mobile/tablet nav
+  shape instead of three. See the reversed rule in Mobile interface
+  conventions for the full reasoning and what was removed (`.head-action`,
+  `.head-nav`, the six-column grid). `APP_VERSION` bumped to 10.37.0 (cached
+  HTML/CSS/JS changed).
+- **v10.36.0.** Read tab reading-forms pass is ✓ Done, from real usage
+  feedback: (1) furigana had only one all-or-nothing toggle — `#furigana-hide-known`
+  adds a second checkbox that fully hides `<rt>` for words already marked known
+  (`.reading.hide-known-furigana .tok.word.is-known rt`), independent of the
+  existing dimming and the original show/hide-all checkbox. (2) `js/reading-forms.js`
+  is a new pure module (`tokensToKana`, `kanaToRomaji`, `tokensToRomaji`) that
+  substitutes each token's dictionary/kana reading and leaves anything without
+  one — an unmatched kanji run, punctuation, latin — unchanged rather than
+  guessing; `kanaToRomaji` is an approximate modified-Hepburn converter
+  (digraphs, っ consonant-doubling, ん apostrophe disambiguation before a
+  vowel/y, ー vowel extension) good enough for casual reading, not a
+  linguistic authority. The Read toolbar's new `#read-view` select swaps
+  `#reading` between the interactive original+furigana rendering and two
+  read-only plain-text transcriptions (`renderReadingView()` in `js/app.js`),
+  and `#copy-kana`/`#copy-romaji` copy the same two forms to the clipboard
+  independent of whichever view is showing. All ephemeral — no storage key,
+  no usage-journal event. (3) `.reading` gained `white-space: pre-wrap`,
+  fixing a real bug: pasted paragraph breaks showed correctly in the shared
+  textarea but collapsed to one run once rendered into the Read tab, because
+  nothing preserved newlines in that container. (4) Words gained the same
+  known toggle the Kanji library cards already had: `wordRowMarkup()`'s
+  `.compound-known[data-word-known]` button toggles `kotoba-lab:known-words`
+  (no new store) and sits beside the existing Save button on every compound
+  and word-lookup row; the delegated `[data-word-known]` click handler mirrors
+  the existing `[data-kanji-known]` one and reuses `refreshKnownEverywhere()`.
+  (5) The header brand mark and the desktop side-rail brand are now real
+  `<button data-tab="analyze">` elements instead of inert `<div>`s — they pick
+  up wiring for free since `wireUi()` already binds every `[data-tab]`
+  element — so the logo acts as a home link back to Analyze, with a CSS reset
+  (`background/border/padding/font: inherit`) keeping the native button from
+  changing how either brand block looks. (6) The "confusing/similar kanji"
+  study idea from an earlier conversation is **already shipped**, not a gap:
+  Kanji Contrast Lab (see its conventions section below) groups 3–5 kanji
+  sharing one direct visual component with distinct meanings and quizzes
+  meaning/on'yomi — exactly "similar radical, slightly different kanji."
+  `IDEA_GARDEN.md`'s parked "False-Friend Museum" seed (homophones and
+  near-synonym traps, not just visual similarity) remains a separate,
+  unapproved idea if broader confusable-kanji coverage is wanted later.
+- **v10.35.1.** Achievements mobile pass is ✓ Done: at ≤780px the badge
+  grid drops its minmax to fit two (sometimes three) per row instead of one
+  (cutting the page from ~6 screens of scroll to ~3.5 on a phone), the filter
+  pills get tighter padding, and the Profile & Data category "Clear" buttons
+  gained the missing 44px touch-target rule. No overflow bugs found anywhere
+  else in the app when swept at 320/360/375px.
+- Achievements is now a full game layer: XP, 8 hand-named
+  levels (白紙→皆伝), a persisted unlock ledger (`kotoba-lab:achievements`, the
+  sixth storage key), locked/unlocked badges across 24 achievements in 7
+  categories, a review streak, and a 90-day review-activity heatmap. This
+  reverses the page's earlier derived-only, no-locked-slots doctrine by
+  explicit owner sign-off — see the Vocabulary conventions section. `js/milestones.js`
+  is retired; `js/achievements.js` is its replacement and is not derived-only.
+- Radical Tree component coloring, the standalone Kanji
+  library, Group A stroke/reading families, and Group B radical/component
+  reverse browsing are ✓ Done. Group C family study workspaces is also ✓ Done.
+- Phonetic Component Lab, Kanji Contrast Lab, Text-to-Study Journey, and Family
+  Mix Challenge are ✓ Done.
+- The first/default sample is the original mixed-level anime-style scene
+  `星が消える前に`; keep public samples original or clearly licensed.
+- Mobile Group A is ✓ Done: compact sticky branding, a safe-area-aware bottom
+  tab bar, touch-sized input/sample controls, and a Read details bottom sheet.
+- Mobile Group B is ✓ Done: always-visible search/JLPT controls, collapsible
+  advanced filters, compact result cards, and phone-sized family-study layouts.
+- Mobile Group C is ✓ Done: focused Review cards, saved-deck cards and backup
+  controls, direct My Words entry, and a compact full-screen Radical Tree.
+- Direct Aozora URL fetching remains deferred because a static page cannot
+  fetch Aozora cross-origin without a proxy.
+- The startup warning flash is ✓ Fixed: it stays hidden during normal HTTP
+  loading, appears immediately for `file://`, and falls back after four seconds
+  only when the module graph genuinely never starts.
+- KanjiVG path compaction is ✓ Fixed: tiny negative coordinates that round to
+  zero retain `-0` so their minus sign continues to separate adjacent SVG
+  numbers. The corrected artifact repairs 9,051 paths across 4,484 kanji.
+- Visual polish Group A is ✓ Done: layered washi surfaces, clearer elevation,
+  stronger hierarchy, indigo support, and harmonized Kanji/Review/Tree styling.
+- Interaction polish Group B is ✓ Done: tab and panel transitions, tactile
+  controls, animated disclosures, staggered Kanji results, and a complete
+  reduced-motion path.
+- Study feedback Group C is ✓ Done: answer reveals, Review-grade acknowledgement,
+  correct/incorrect result treatments, progress/completion moments, known/save
+  confirmations, mobile-safe toasts, and richer Radical Tree component focus.
+- Kanji Relationship Map Groups A–C are ✓ Done: the pure engine combines
+  canonical radicals, direct components, normalized readings, and supporting
+  stroke proximity into bounded neighborhoods; the full-screen map adds
+  evidence connectors, recenter/back navigation, known/text/JLPT context, and
+  app-wide doorways. Phones use swipeable Structure and Readings lanes.
+- Relations workspace Groups A–C are ✓ Done: the `縁 Relations` tab lazy-loads the
+  compact relationship index, embeds the existing one-hop explorer, and offers
+  dictionary search plus current-text, known-kanji, and discovery starting
+  points. Evidence, JLPT, learning-context, and 12/24/40-result filters apply
+  before ranking; overflow results use a desktop gallery and mobile lanes.
+  The optional bounded two-hop view balances structural and reading branches,
+  supports branch expansion, root changes, zoom/reset, Radical Tree doorways,
+  and clustered mobile swipe lanes without replacing the one-hop default.
+- Kanji Constellation Atlas Groups A–D are ✓ Done: an experimental third Relations
+  view projects one selected direct-component family into a deterministic,
+  bounded 24-star sky. Existing known-kanji state illuminates stars, unfamiliar
+  stars stay quiet, and each star returns to its normal one-hop neighborhood.
+  Star focus now opens a reading/detail panel with known-state control, explicit
+  Neighborhood and Radical Tree doorways, and an Atlas-root action that keeps
+  the current component when valid. The chosen component, star, and Atlas
+  position are ephemeral and add no storage key. Solid component spokes now
+  sit beside bounded dashed reading routes; learners can hide those routes and
+  zoom the sky from 80–120%. Gentle route, center, and known-star motion makes
+  the sky feel alive while the reduced-motion path remains completely still.
+  The final study loop opens unknown visible stars as a temporary constellation
+  session, returns directly to the same Atlas, exports all visible stars through
+  the existing private-data-free pack format, and offers ephemeral component
+  and reading-exception challenges. Opt-in usage counts stay payload-free.
+- Desktop space-efficiency Groups A–C are ✓ Done: shared layout tokens keep
+  Analyze, Read, and Review at the focused reading measure while data-heavy
+  Kanji and My Words expand to 1440 px and Relations to 1560 px. Atlas uses a
+  larger canvas from 1440 px upward without page overflow. Its session-only
+  focus mode hides the surrounding Relations setup, preserves the current
+  component and selected star, exits with Escape or when leaving the view, and
+  stays unavailable on phones where touch panning remains.
+- Radical Alchemy Group A is ✓ Done: the Kanji-library doorway opens a
+  deterministic five-formula Today’s Brew spanning N5–N1. Only unique pairs
+  of exactly two direct labelled components become questions; every reveal
+  cites that visual-structure evidence, avoids etymology claims, and offers a
+  delegated Radical Tree doorway. The lab, score, and current formula are
+  ephemeral, add no storage key, and keep full stroke paths lazy.
+- Radical Alchemy Group B is ✓ Done: a 78 KB original text-free workbench WebP
+  provides quiet atmosphere while a reusable SVG sprite owns every functional
+  flask, crucible, book, seal, spark, and transmutation-circle symbol. Bubbles,
+  vessel pours, ink bloom, seal stamping, and completion sparkle remain
+  restrained and become fully static under reduced motion. Study meaning and
+  controls stay in accessible HTML rather than the generated image.
+- Radical Alchemy Group C is ✓ Done: result, missing-ingredient, reverse, and
+  short transformation-chain modes all derive from the same unambiguous direct
+  component recipes. An all/unknown target filter, answer-level known controls,
+  and a session-only recipe trail support different study intentions. The trail
+  can open in the existing temporary reveal-card workspace and adds no score,
+  streak, profile field, or storage key.
+- Offline PWA support is ✓ Done: a pure `js/offline-cache.js` policy module owns
+  the precache list, tier assignment, and per-type strategies while `sw.js` stays
+  a thin Cache API shell. Tier 1 precaches the whole default application
+  including the stroke artifact, so Radical Tree works offline unconditionally;
+  only the opt-in kuromoji tokenizer is held back behind a deliberate download in
+  Profile & Data. Updates are version-stamped and offered through an explicit
+  reload prompt so no ephemeral session is destroyed. The application is
+  installable to an Android home screen.
+- Profile & Data is ✓ its own panel: application-level data management left the
+  My Words study tab and now lives at `[data-panel="profile"]`, reached from a
+  Settings control in the header. It deliberately has no slot in the bottom tab
+  bar, so the mobile bar stays at six columns. My Words keeps Known, Saved deck,
+  and Portable Study Packs.
+- Back-button routing is ✓ Done: tabs push hash routes, so the Android back
+  gesture steps back through views instead of leaving the installed app, and
+  views are bookmarkable. `#settings` opens Profile & Data. Full-screen overlays
+  are deliberately not routed; they keep their own Close buttons.
+- Compound words is ✓ a bounded first experiment: a My Words card reports the
+  all-kanji compounds every one of whose characters is already marked known —
+  the reverse of the decomposition features. Ranked easiest-first by JLPT, capped
+  at 24 visible while the total stays honest, kanji reuse the existing
+  `[data-kanji-tree]` doorway, and each word can be saved straight into the
+  review deck. No new storage key, tab, or usage event.
+- Compound saves reuse the ordinary deck entry shape and carry no sentence
+  context, because a word discovered from the known-kanji set has no source
+  text behind it. `readableCompoundIndex` holds only the visible rows so saving
+  never rescans the vocabulary.
+- Kanji and vocabulary are ✓ no longer separate: `wordsContaining()` supplies
+  the "Appears in" list shown in the Radical Tree info panel and the Read kanji
+  panel, so every existing tree doorway now also reaches vocabulary. Analyze
+  frequency-table kanji became Radical Tree and Relationship Map doorways
+  instead of an inert ranking.
+- Word lookup is ✓ Done: `js/word-browser.js` searches the 10,808 committed
+  vocabulary entries by surface, normalized reading, or English meaning, with
+  JLPT and readable-state filters. It closes the asymmetry where 6,813 kanji
+  were fully browsable while words were reachable only through pasted text.
+  Results share one row shape with the compound card, so both save into the
+  review deck the same way.
+- Unlock feedback is ✓ Done: marking a kanji known now names the compounds it
+  just made readable — "✓ 校 known — unlocks 学校、校長、高校 and 2 more" — from
+  every path that marks one. Marking from a Kanji card had been silent.
+- Milestones are ✓ Done: Profile & Data lists the capability thresholds already
+  passed — kanji known, words readable, words known, cards saved, days reviewed —
+  derived from the four profile stores at render time. No ledger, no badges, no
+  sixth storage key, and no new surface.
+- Micro-feedback pass 1 is ✓ Done: mark-known now pops consistently on the Kanji
+  library grid, and Save pops on compound/word-lookup cards, both reusing
+  `confirm-pop`. Removing a known chip or a saved deck row now plays a brief
+  `chip-leave`/`row-leave` release before the list re-renders, via the shared
+  `leaveThen()` helper, instead of vanishing on the spot. All reduced-motion.
+- Review card flip is ✓ Done: showing the answer turns the whole `#srs-stage`
+  card edge-on and back, like a physical flashcard, via `flipStage()` and the
+  `card-flip-out`/`card-flip-in` keyframes; content is swapped while the card
+  reads as edge-on, so the change is never visible mid-turn. Advancing to the
+  next card after grading flips it in the same way. Reduced motion skips the
+  flip and renders instantly, unchanged from before this pass.
+- Word-unlock brush reveal and kanji settle are ✓ Done. In My Words, a word
+  that just became readable — relative to what was last actually *shown*
+  there, not the previous render, since this panel silently re-renders while
+  hidden every time known-state changes anywhere in the app — is brushed in
+  left-to-right (`brush-reveal`) instead of appearing with the rest of the
+  list; see the `seenReadableWords` baseline in `renderReadableCompounds()`,
+  which only advances while the panel is visible. The Kanji library grid's
+  entrance now overshoots slightly before settling (`kanji-settle`) instead
+  of a plain fade, reserved for kanji arriving in numbers. Both skip under
+  `prefers-reduced-motion`.
+- Relationship Map connector grow is ✓ Done: every `.krm-connectors line`
+  shares `x1,y1` at the center kanji, so scaling each one from 0 anchored at
+  that exact point (`transform-box: view-box; transform-origin: 50px 50px`)
+  sweeps its far end out to its node — the web growing outward, not merely
+  fading in — via `krm-connector-grow`, staggered per line with an inline
+  `--i`. Deliberately animates `transform` only, never `opacity`: the
+  `both` fill-mode would otherwise pin every line to one shared end-state
+  opacity, erasing the reading-kind line's own dimmer resting opacity and
+  dashed pattern. Redraws on every re-center, since navigating within the map
+  always renders a fresh set of `<line>` elements. The Constellation Atlas
+  was left alone here — it already has route travel, a breathing center, and
+  known-star twinkle, and piling more ambient motion on top would read as
+  busy rather than alive.
+- Desktop side rail and Achievements tab are ✓ Done: at 1081px+ the header is
+  replaced by `.side-rail`, a fixed left column listing every destination —
+  including Achievements and Settings, which stay off the bottom bar — as an
+  equally-weighted row with its own color from the `--nav-*` token set.
+  Achievements is a new routable tab (`data-panel="achievements"`) carrying
+  the milestones content that used to live inside Profile & Data; see the
+  Vocabulary conventions section for the reversed rule this required. Below
+  1081px nothing changed except the header gaining a second head-action
+  button (Achievements, next to Settings) and that button collapsing to
+  icon-only starting at 1080px instead of 780px, so the pill tab row plus two
+  head-actions still fit above phone width.
+- Two fixes to the above, both from real testing feedback: (1) wide panels
+  (Kanji, Relations) and the Atlas's immersive focus width were still sized
+  off `100vw`, which doesn't know the rail exists — `main.wrap` now drops its
+  own `max-width` at 1081px+ and each `.panel` centers itself independently
+  (`max-width` + `margin-inline: auto`), so a wide panel's width is relative
+  to `main`'s already-rail-aware box, never the raw viewport. (2) Achievement
+  cards are grouped into one section per category instead of one flat list
+  interleaved by raw threshold — five distinct kinds of progress, not a
+  repeating two-color pattern that read as duplicated.
+- Radical Alchemy is ✓ its own tab: it left the Kanji library doorway for
+  `data-panel="alchemy"` (`renderAlchemyTab()`), reversing the rule recorded
+  in Radical Alchemy conventions. Reachable everywhere the same way
+  Achievements is — a head-action on phone/tablet, a colored `.rail-link` on
+  desktop. No open/close state machine anymore: it renders on tab arrival and
+  preserves an in-progress session across a revisit instead of restarting it.
+- My Words split into Words and Deck is ✓ Done: known-words/kanji chips,
+  readable compounds, and word lookup moved to a new `data-panel="words"` tab
+  (`renderWords()`); the saved deck table and Portable Study Packs stayed at
+  `data-panel="mywords"` under a "Deck" label (`renderMyWords()`, now deck-only
+  — see the Persistent state rule above for who must refresh what). Words took
+  the bottom-bar slot the old My Words tab had, since it's the more frequently
+  visited of the two; Deck moved to a head-action alongside Alchemy,
+  Achievements, and Settings. Four head-actions plus the brand needed a
+  tighter `.head-nav` gap and `.head-action` padding at ≤1080px to keep fitting
+  the narrowest phone widths without clipping — see the icon-only block in
+  japanese-reader.css.
+- Settings split into Settings and Insights is ✓ Done: the usage journal,
+  friction radar, and shareable report moved to a new `data-panel="insights"`
+  tab, reusing `renderUsageJournal()` unchanged (called from `switchTab` now
+  instead of only from inside `renderProfilePanel()`). Settings kept profile
+  summary, the local data dashboard, offline availability, and backup/import
+  — `renderProfilePanel()` is now data-management-only. Insights is a fifth
+  head-action (Alchemy, Deck, Achievements, Insights, Settings), which pushed
+  header spacing to its practical limit on the narrowest phones — see Mobile
+  interface conventions. While moving this, also fixed a real pre-existing
+  bug: the friction radar's "go to X" suggestion buttons (`[data-usage-tab]`)
+  had no click handler wired to their actual panel at all (the only listener
+  checking for them lived on `#mywords-panel`, which never contained them) —
+  they now work, bound directly on `#insights-panel`.
+- Consistent desktop panel width is ✓ Done: every panel at 1081px+ now shares
+  `--layout-data` (Kanji's width) as its `max-width` by default instead of
+  splitting between the reading and data measures — see the reversed rule in
+  Desktop layout conventions for why and what Relations kept. Owner feedback
+  from four desktop screenshots was that the previous split made tab
+  switching visibly snap the page narrower or wider depending on which panel
+  came up. Follow-up from the same feedback: `.input-card` (the shared Text
+  box on Analyze and Read) is a sibling of `.panel`, not a `.panel` itself,
+  so it had no width rule of its own and grew wider than the panel content
+  under it once the viewport exceeded the data width — it now shares the
+  same `.panel` width rule explicitly.
+- Data Management Groups A–C are ✓ Done: Profile & Data exports versioned full
+  profiles with metadata, previews imports before any write, defaults to a
+  repeat-safe merge, and gates replacement behind confirmation. Portable Study
+  Packs export current-text, selected-family, or Relations kanji without any
+  personal progress and import into an ephemeral family-study session. The
+  local dashboard summarizes card readiness, known collections, review activity,
+  and profile size; categories clear independently and full reset requires the
+  exact typed phrase `RESET KOTOBA LAB`.
+- Local Usage Journal Group A is ✓ Done: the opt-in, browser-only journal keeps
+  90 days of daily session, visible-active-minute, and fixed coarse-action
+  counts. Profile & Data exposes today/overall summaries plus pause and reset;
+  no content payload can enter the journal. Group B is ✓ Done: a pure local
+  insight engine shows feature rhythm and cautious friction prompts for review
+  queues, Analyze-to-Read handoff, exploration-to-practice handoff, and brief
+  sessions. Group C is ✓ Done: a previewable/copyable/downloadable Markdown
+  report shares aggregate activity, feature rhythm, profile totals, and fixed
+  signal labels without exposing the raw journal or study content.
+- `IDEA_GARDEN.md` is the durable creative backlog, reorganised 2026-08-31 by
+  what brings someone to the application rather than by when an idea was had:
+  **A. Keeping what you love** (non-study affection — favorites, a shelf, a
+  keepsake card; the newest and emptiest section), **B. In the study loop**,
+  **C. Exploring without a goal**, **D. Looking back**, and **E. Blocked on a
+  source this project does not have**. Section E is the one to read before
+  proposing anything: those directions need evidence or authored content the
+  repository does not hold, and building them anyway means inventing a judgment
+  the application refuses to make. A shipped index and the open follow-ups from
+  each shipped feature live at the end of the file. Implementation records do
+  NOT go there — they belong in this file's backlog and conventions. No list
+  order is an implementation queue; continue from observed use and request
+  approval for every new bounded experiment.
+
+## Public repository conventions
+
+- This repository is the canonical, self-contained Kotoba Lab source.
+- Keep documentation public-facing. Do not add local absolute paths, private
+  vault links, generated portfolio notes, or dependencies on sibling repos.
+- Original source uses the top-level MIT license. Preserve the separate
+  licenses and attribution described in `data/ATTRIBUTION.md` and
+  `vendor/kuromoji/VENDORED.txt`.
+- The privacy promise is documented in `PRIVACY.md`: Japanese text and study
+  state stay in the browser. Any future networked feature requires an explicit
+  privacy and architecture decision before implementation.
+- GitHub Pages publishes `main` at `https://onuresen.github.io/kotoba-lab/`
+  through `.github/workflows/pages.yml`. Keep deployment test-gated and do not
+  grant Pages write or OIDC permissions to the pull-request test job.
+- Keep the inline classic startup fallback immediately beside
+  `#boot-warning`. `js/app.js` must cancel its timer as soon as the module graph
+  starts and explicitly reveal the banner only for a real dictionary failure.
+
+## File map
+
+- `js/kanjivg.js` — pure compact-tree decoder; no DOM and no fetch.
+- `js/kanjitree.js` — full-screen SVG overlay, animation, drill-down, focus,
+  reduced motion, and known-kanji control.
+- `js/kanji-browser.js` — pure dictionary catalog search, filtering, sorting,
+  sections, and stroke/reading/radical/component families; no DOM or storage.
+- `js/component-lookup.js` — pure transitive component index, AND-intersection
+  selection, co-occurrence dimming, and glyph/meaning chip search; no DOM,
+  storage, fetch, or stroke paths.
+- `js/kanji-mystery.js` — pure date-seeded daily puzzle: eligibility pool, five
+  fixed clues from committed dictionary facts, guessing, and a spoiler-free
+  result line. No DOM, storage, or fetch.
+- `js/writing.js` — pure stroke-order grading from endpoints alone: order,
+  direction, placement, count, and the sentence explaining a miss. No DOM,
+  storage, or path parsing; never judges shape.
+- `js/grammar.js` — pure IPADIC tag reading: part-of-speech labels, dictionary
+  form comparison, and whole-text profiles. The only interpreter of morphology
+  in the application; no DOM or storage.
+- `js/kanji-relationships.js` — pure reusable relationship index, evidence
+  ranking, common-reading bounds, and deterministic neighborhood selection;
+  no DOM, storage, fetch, or stroke paths.
+- `js/kanji-map.js` — reusable embedded/full-screen relationship canvas,
+  evidence detail, navigation history, known-state control, and mobile lanes.
+- `js/kanji-study.js` — pure ephemeral family-session state, reveal progress,
+  bounded navigation, and shuffle/restart behavior; no DOM or storage.
+- `js/kanji-labs.js` — pure phonetic-signal analysis, contrast-set generation,
+  question selection, and session scoring; no DOM or storage.
+- `js/kanji-alchemy.js` — pure unique two-component recipe generation,
+  deterministic daily selection, answers, scoring, and bounded navigation;
+  no DOM, storage, fetch, or stroke paths.
+- `assets/alchemy/` — optimized original workbench backdrop, code-native SVG
+  icon sprite, and public asset provenance. Runtime references stay relative
+  so they work beneath the GitHub Pages project path.
+- `js/text-journey.js` — pure text-specific route ranking, projected coverage,
+  word/context collection, and ephemeral journey navigation; no DOM/storage.
+- `js/backup.js` — pure versioned profile serialization, inspection, backward-
+  compatible parsing, summary metadata, and repeat-safe merge rules.
+- `js/profile-dashboard.js` — pure card/readiness, known/review, and byte-size
+  metrics plus category-level and full-profile reset helpers; no DOM/storage.
+- `js/usage-journal.js` — opt-in, allowlisted daily usage counters with no
+  payload API, 90-day retention, pause/reset controls, and summary helpers.
+- `js/usage-insights.js` — pure feature-mix and threshold-based friction prompts
+  derived from journal totals plus the current due-card count; no DOM/storage.
+- `js/usage-report.js` — pure, deliberately lossy Markdown report and filename;
+  output labels are whitelisted and arbitrary caller prose is never emitted.
+- `js/study-pack.js` — pure portable kanji-pack schema, sanitization, filenames,
+  and conversion into an ephemeral family-study snapshot; no DOM/storage.
+- `js/offline-cache.js` — pure precache list, tier assignment, per-type strategy
+  selection, and version-stamped cache naming; no DOM, fetch, or Cache API.
+- `sw.js` — thin service worker: precache on install, discard stale version
+  caches on activate, apply the imported strategies on fetch, and accept only
+  `SKIP_WAITING`. Holds no path list of its own.
+- `manifest.webmanifest` — installable metadata; every path relative.
+- `js/compound-words.js` — pure readable-compound detection, ranking, and
+  bounding from the committed JLPT vocabulary and the known-kanji set; no DOM
+  or storage.
+- `js/false-friends.js` — pure homophone-group construction (identical
+  dictionary reading, distinct meanings, multi-character words only) and a
+  meaning-matching question for the False-Friend Museum's homophones
+  exhibit; no DOM, storage, or fetch.
+- `js/routing.js` — pure hash parsing, tab/route translation, and unknown-route
+  fallback; no DOM, history, or fetch.
+- `js/reading-forms.js` — pure token→kana and kana→romaji (approximate
+  modified Hepburn) conversion for the Read tab's interactive kana/romaji
+  view modes, copy-to-clipboard actions, and the Anki export's optional
+  romaji column; no DOM, storage, or fetch. Never guesses a reading for a
+  token that doesn't already have one. `kanaToRomajiSegments()` converts a
+  list of segments as one continuous string, then cuts the result back
+  apart at the original lengths — the boundary-safe form callers reaching
+  across per-token spans need, since a sokuon or ん right at a segment edge
+  depends on the mora just after it.
+- `index.html` `[data-panel="profile"]` — Settings panel: profile summary,
+  local data dashboard, reset, offline availability, backup actions, and
+  import preview. Reached only from a header control.
+- `index.html` `[data-panel="insights"]` — Insights panel: the opt-in usage
+  journal, friction radar, and shareable report. Split out of Settings so
+  each destination holds one focus; reached only from a header control.
+- `assets/icons/` — 192/512 any-purpose and 512 full-bleed maskable icons.
+- `tools/build-kanjivg.mjs` — pinned KanjiVG generator and `--check` command.
+- `data/kanjivg.json` — committed 5.84 MB runtime artifact.
+- `data/kanji-families.json` — committed compact radical/direct-component
+  reverse index; lazy-loaded only for structural family views.
+- `data/kanjivg.manifest.json` — pinned input and artifact checksums used by CI.
+- `js/app.js` — retryable lazy loader plus delegated doorway integration.
+- `js/achievements.js` — pure achievement catalog (24 ids, XP, category), level
+  curve, and unlock evaluation; no DOM, storage, or fetch. Persisted unlock
+  timestamps live in `storage.js`'s `createAchievementLog`, not here.
+- `js/kanji-atlas.js` — pure bounded component-family graph/layout, reading-route,
+  unknown-study, and challenge helpers plus the ephemeral Atlas interactions.
+- `japanese-reader.css` — app-specific styles, including Tree and Relationship
+  Map overlays and their responsive layouts.
+- `README.md` — concise public overview, local setup, architecture, and license
+  boundaries.
+- `IDEA_GARDEN.md` — public creative backlog grouped by what brings someone to
+  the application, with each parked entry's first bounded experiment, the
+  decision still open, and the principles that prevent uncontrolled growth.
+- `PRIVACY.md` — public description of local storage and network requests.
+- `.github/workflows/pages.yml` — tests pushes and pull requests; deploys the
+  static repository root only after tests pass on `main`.
+
+## Kanji Radical Tree conventions
+
+- Runtime stays offline: fetch only committed `data/`; never call KanjiVG at
+  runtime.
+- Keep one delegated `[data-kanji-tree]` path. The approved doorways are Read
+  info chips, revealed Review kanji, and My Words known-kanji buttons.
+- Do not turn reading-view `[data-k]` spans into tree doorways; they select the
+  containing word by design.
+- The Read info chip opens the tree without replacing its surrounding word
+  panel, so `Esc` can restore focus to the same chip.
+- My Words glyph and remove actions must remain separate real buttons.
+- Preserve the pure/DOM split: decomposition belongs in `kanjivg.js`; overlay
+  behavior belongs in `kanjitree.js`.
+- `kanjitree.js` keeps no dictionary of its own. Vocabulary for the "Appears in"
+  list arrives through the injected `wordsFor(char)` option, the same way
+  `kanjiInfo` and `isKnown` do, so the overlay stays a renderer. Each word row's
+  own known state is the same injection pattern once more:
+  `isWordKnown`/`toggleWordKnown`/`onWordKnownChange` parallel
+  `isKnown`/`toggleKnown`/`onKnownChange`, and `.kt-word-known`'s click
+  handling in the overlay's own listener parallels `.kt-known`'s — do not
+  switch it to the Read info panel's `[data-word-known]` delegated handler;
+  the overlay lives in `document.body` like the rest of the page, so reusing
+  that attribute would fire both handlers on one click.
+- Every terse or icon-only control carries a `title` that names the destination
+  or the consequence, not the mechanism: "Save 学生 to your Review deck", not
+  "Save". `aria-label` stays the short accessible name; `title` is the sighted
+  hover explanation, and toggles must swap both with their state.
+- Use design tokens in CSS; do not add hardcoded colors.
+- Keep visual depth derived from the palette tokens (`--surface-raised`,
+  `--surface-sunken`, `--surface-warm`, and ink-shadow tokens). Vermilion is
+  the primary action signal; indigo supports structure and depth.
+- Motion confirms navigation and newly rendered content but never carries
+  meaning alone. Every new animation or transform needs a matching
+  `prefers-reduced-motion` rule.
+- Review scheduling must be persisted before its 240 ms grade acknowledgement;
+  the animation may delay rendering the next card, never saving the answer.
+- Removing something from a rendered list (an unmark, a deck removal) should
+  play a brief release before the list re-renders, not vanish instantly. Use
+  the shared `leaveThen(el, after)` helper: it mutates the store immediately,
+  same as the Review acknowledgement above, and only delays the re-render —
+  skipping the delay entirely under `prefers-reduced-motion`.
+- A two-phase attribute animation (flip, or anything else that must play the
+  same visual step twice in a row, e.g. two reveals back to back) needs a
+  forced reflow between removing and re-adding the attribute, or the second
+  play won't restart — see `flipStage()`. Content changes only happen while
+  the element is mid-animation and effectively invisible (edge-on, faded,
+  off-screen), never at a visible frame.
+- A "new since last time" reveal must diff against what was last actually
+  *shown* on screen, not the previous render call. Several panels (My Words
+  chief among them) re-render every time shared state changes anywhere in the
+  app, including while hidden behind another tab — diffing against every
+  render call consumes the "new" flag on an invisible render and the visible
+  one that follows shows nothing. Gate the baseline update on the panel's own
+  visibility, as `renderReadableCompounds()` does with `seenReadableWords`.
+- When an entrance animation uses `both` fill-mode on a selector whose
+  resting `opacity` (or any other property) already varies by kind or state,
+  animate `transform` only. The held keyframe end-state overrides the plain
+  property forever once the animation finishes, so animating `opacity` there
+  would flatten every kind to one shared value — see `krm-connector-grow`,
+  which leaves the reading-kind connector's dimmer resting opacity alone.
+- Component colors are positional and non-semantic. Keep the assembled kanji
+  monochrome; color direct children only in the separated state, and match each
+  component button without relying on color as its label.
+- `compactPath()` must preserve negative zero. In SVG path syntax a minus sign
+  can separate adjacent coordinates, so converting `3.57-0.01` to `3.60`
+  silently merges two Bézier parameters and distorts the stroke.
+
+## Daily Mystery conventions
+
+- Every clue is a committed dictionary fact. Never characterise a kanji, hint
+  at its difficulty, or describe it in words of the application's own.
+- Clue kinds and order are fixed and vaguest-first. Do not make them adaptive:
+  one day's path has to mean the same thing as another's.
+- Pool filters are data requirements, not difficulty judgments, and each one
+  should name the clue it protects. A kanji that is its own canonical radical
+  has no third clue; one below the vocabulary threshold has no meaningful
+  fifth; an ungraded one has no second.
+- A guess costs a clue, so it must never happen by accident: Enter submits only
+  when the search has narrowed to exactly one candidate.
+- A wrong guess opens the next clue — the puzzle answers back. A repeated guess
+  costs nothing.
+- Session-only, like Today's Brew. No storage key, no streak, no history, no
+  win rate; a reload starts the same day's kanji over, and the date seed is
+  what makes that acceptable.
+- The share line carries marks and a date. Never the kanji, a reading, a
+  meaning, a clue, or a score out of five.
+
+## Writing practice conventions
+
+- Grade order, direction, placement, and count. **Never shape.** A stroke is
+  its two endpoints; a wild line between the right start and the right end
+  passes, and the copy says as much rather than implying penmanship was judged.
+  Adding a curve-similarity score would be inventing the closeness judgment the
+  rest of this application refuses to make.
+- A wrong stroke does not advance. Committing it would leave the drawing wrong
+  from that point on, and the order is the whole exercise.
+- Check reversal before placement, on relative distance rather than the
+  tolerance, or a stroke shorter than one tolerance circle can be drawn either
+  way round and pass.
+- Keep the tolerance generous (~22% of KanjiVG's 109-unit box). A fussy grader
+  fails correct strokes and teaches only that the tool is fussy.
+- Say what was expected and what happened, in words, from a 3x3 reading of the
+  box: "Stroke 3 starts at top left; yours started at the centre." Never a
+  score, a percentage, a streak, or a grade.
+- Hints are counted separately from misses and shown as such. Neither is
+  persisted.
+- The session is ephemeral in the strongest sense: no storage key, no profile
+  field, no journal event, and it ends on drill-down, back, or close, since
+  each of those means a different set of strokes.
+- Take stroke endpoints with `getPointAtLength()` on a real path element rather
+  than parsing the `d` attribute. It is exact, needs no parser, and keeps
+  `js/writing.js` pure and testable under Node.
+- Drawing is pointer-only; that is inherent to the exercise. Keep "Show this
+  stroke" available so a keyboard user can still walk the whole kanji, and keep
+  the verdict in an `aria-live` region.
+- `hidden` is an HTMLElement property. On the practice `<svg>` use
+  `toggleAttribute('hidden', …)` — assigning `.hidden` sets a JS expando and
+  the element stays exactly as it was.
+
+## Grammar conventions
+
+- `js/grammar.js` is the only place in the application that reads a
+  morphological tag. Everything else consumes its output.
+- Describe IPADIC's own labels; never state a grammar rule the dictionary does
+  not contain. `conjugated` is a comparison with the analyser's lemma, not a
+  tense; the inflection label is shown verbatim and named as the analyser's.
+- Do not render `pos_detail_1`. It is 自立 for almost every verb and would need
+  translating for a particle, and translating a subtype is where describing a
+  tagset becomes teaching grammar. It stays on the token for a feature that has
+  a real use for it.
+- Morphology fields on the Token are OPTIONAL. The v1 segmenter emits none, so
+  every consumer must render nothing rather than something wrong, and must say
+  "not available" rather than showing an empty profile.
+- The Read grammar layer marks function words (particles, auxiliaries) only,
+  in the palette's secondary indigo. Do not give each part of speech a hue: red
+  means "unknown / above your level" in this app and the JLPT ramp owns
+  difficulty, so a third categorical scale would make the reader's own color
+  vocabulary ambiguous.
+
+## Desktop layout conventions
+
+- Keep `--layout-reading`, `--layout-data`, and `--layout-visual` as the shared
+  width contract. Do not scatter new panel-specific desktop widths through the
+  stylesheet.
+- **Reversed 2026-08-16, by explicit owner sign-off.** The rule used to read:
+  *"A panel goes wide only when its content genuinely needs the room: a dense
+  browsing grid or a spatial canvas. Kanji uses the data width; Relations
+  overrides that shared limit with the visual width. Everything else —
+  Analyze, Read, Review, My Words, and Settings — stays at the reading
+  measure, because reading columns, card lists, and tables are all more
+  legible narrow. Only panels explicitly marked `data-layout="wide"` may
+  escape the reading measure, and there are exactly two."* Owner feedback
+  (four desktop screenshots) was that snapping between a narrow panel and a
+  wide one on every tab switch reads as unpolished regardless of the
+  per-panel legibility argument. Every panel at 1081px+ now shares the data
+  width (`--layout-data`, Kanji's width) as its `max-width` by default —
+  `data-layout="wide"` no longer changes anything on its own, since wide and
+  default now resolve to the same value. What survived: Relations still opts
+  into the even-wider visual width via its own `--panel-wide-max` override,
+  because that's a spatial canvas with a standing, previously-fixed cropping
+  reason the flat content panels don't share. Do not reintroduce a narrower
+  default for any panel to "improve" its reading measure without checking
+  with the owner first — the whole point of this reversal is a width that
+  does not change when the tab does.
+- `.panel`'s desktop rule needs an explicit `width: 100%` alongside its
+  `max-width`, not `max-width` alone. `main.wrap` is `display: flex;
+  flex-direction: column`, so `.panel` is a flex item whose cross-axis
+  (width) sizing normally stretches to fill it — but a lightly-populated
+  panel (Achievements or Settings with a fresh profile, before any content
+  fills the card) can be narrow enough that its own shrink-to-fit content
+  width comes in under the flex container's stretched width, and without
+  an explicit `width` the panel shrinks to that content width instead of
+  staying full-width. `max-width` alone only ever caps a size that's
+  already explicit; it does not force stretch to kick in. This is exactly
+  the failure mode the panel-width consistency rule above exists to
+  prevent, so a panel with sparse content is the case most likely to
+  silently regress it — check an empty/near-empty panel state, not just a
+  full one, after touching this rule.
+- Wide workspaces begin above the 1080 px reading measure and must not create
+  page overflow. Tablet and phone behavior remains governed by the existing
+  responsive rules rather than separate narrow-screen width overrides.
+
+## Offline and installation conventions
+
+- `sw.js` and `manifest.webmanifest` must stay at the repository root. A service
+  worker's scope is its own directory, and Pages serves the project from
+  `/kotoba-lab/`.
+- All precache paths stay relative. An absolute `/data/...` path resolves outside
+  the project subpath in production.
+- Keep policy in `js/offline-cache.js` and I/O in `sw.js`. The worker must hold
+  no path list of its own.
+- **Any release that changes a cached file must bump `APP_VERSION`.** The cache
+  is named `kotoba-lab:v${APP_VERSION}` and stale caches are deleted on activate,
+  so a forgotten bump ships a permanently stale install. `APP_VERSION` appears in
+  `js/app.js`, `sw.js`, and `package.json`; `js/sw-routing.test.js` fails if the
+  three drift apart.
+- Registration failure is silent. An unsupported browser, insecure context, or
+  disabled worker must leave the application exactly as it behaves today and must
+  never touch `#boot-warning` or the dictionary-failure banner.
+- Never auto-reload on update. Offer the reload and let the learner choose, so an
+  open Alchemy, Atlas, or study session is never destroyed.
+- Cache Storage holds application files only. It is not study data, adds no
+  localStorage key, and must never be written into a profile backup or study
+  pack.
+- Offline availability is derived by querying the cache at render time. Do not
+  persist a "downloaded" flag.
+- A service worker cannot be exercised by `node --test`, and Electron-based
+  review browsers cannot register one at all. `js/sw-routing.test.js` loads the
+  real worker with stubbed globals to cover routing, lifecycle, and messaging;
+  genuine Cache API behavior still requires manual QA in a real browser.
+
+## Routing conventions
+
+- Hash routes only. Never push a pathname: `/kotoba-lab/kanji` 404s on GitHub
+  Pages and would route every tab switch through the worker's navigate handler.
+- Keep the tab/route vocabulary split inside `js/routing.js`. `app.js` handles
+  only internal tab names; the module is the single place they translate. The
+  `profile` tab is reached at `#settings`, and `#profile` is deliberately not a
+  valid route so one view never has two URLs.
+- An unknown hash resolves to Analyze. A URL is user-editable input, so parsing
+  must never throw or leave a blank screen.
+- Overlays are **not** routed. Radical Tree, the Relationship Map, and the Read
+  info sheet keep their Close buttons, scrim, and Escape. Routing them needs
+  sentinel history entries whose consumption rules are easy to get subtly wrong,
+  and the info sheet in particular would fire a stray `history.back()` on every
+  tab change because `setInfoSheet(false)` runs in the tab-switch path.
+- Programmatic `switchTab()` calls create history entries on purpose — arriving
+  via an in-app link is navigation. Any new caller must therefore be a response
+  to a user action, never a timer or a loop.
+
+## Mobile interface conventions
+
+- **Reversed 2026-08-18, by explicit owner sign-off.** The two rules below
+  used to read:
+  > At 1080px and below, keep the six primary tabs in the fixed bottom bar
+  > and leave the sticky header for compact branding plus the Alchemy, Deck,
+  > Achievements, Insights, and Settings head-action controls. ... Settings,
+  > Alchemy, Deck, Achievements, and Insights are headed panels, not
+  > bottom-bar tabs. Each is reached from a head-action control in the header
+  > and must never gain a bottom-bar slot; the bar stays at six columns
+  > regardless of how many destinations the desktop side rail carries.
+
+  Owner feedback was that splitting navigation across two menus — a fixed
+  bottom bar plus a second row of icon-only controls sharing the sticky
+  header — read as two different apps stacked on top of each other,
+  especially on phones. Below 1081px the header is now branding-only (just
+  the `.brand` logo/home button, no nav at all) and all eleven
+  destinations — the former six primary tabs plus Alchemy, Deck,
+  Achievements, Insights, and Settings — live in the one `.tabs` bar fixed to
+  the bottom of the viewport. There is no more "head-action" concept: those
+  five buttons are now ordinary `.tab` elements carrying the same `data-tab`
+  values they always did, so `switchTab()`'s existing generic `[data-tab]`
+  handling needed no changes to pick them up, and each still needs its
+  `title` (no longer a separate `aria-label`, since the visible label text
+  now supplies the accessible name at every width the bar shows). Eleven
+  destinations no longer fit as equal-width grid columns on a phone, so the
+  bar dropped its `display: grid` six-column layout for a horizontally
+  scrollable/swipeable flex row (`overflow-x: auto`, `scroll-snap-type: x
+  proximity`, native momentum scrolling) — the same scroll-snap pattern the
+  sample-passage strip already used, which is the "sliding kind animation"
+  the owner asked for. `switchTab()` calls `scrollIntoView({inline:
+  'center'})` on the newly active `.tab`, so navigating to an off-screen
+  destination (Settings from Analyze, say, or via back/forward routing)
+  slides the bar to reveal it instead of leaving the learner to hunt for it.
+  A `.tabs-divider` marks the same primary/secondary grouping the desktop
+  side rail already uses (analyze…words, then mywords…profile) without
+  adding a second visual menu. This is a real breakpoint change, not just a
+  relabel: the old tablet-width (781–1080px) state — tabs as an inline pill
+  row in the header, head-actions icon-only beside them — is gone too;
+  tablets now get the exact same branding-only header and bottom bar as
+  phones, and the `≤1080px`/`≤780px` split in the point below now separates
+  "the bottom bar exists" (≤1080px, unchanged cutoff) from "the bar's own
+  sizing gets tighter still" (≤780px) rather than "header vs. bottom bar."
+- `.tabs` carries a left/right edge fade (`.tabs::before`/`::after`, toggled
+  by `updateTabsScrollFade()` in `js/app.js`) hinting there's more to swipe
+  to, shown only when the first/last `.tab`'s own bounding box actually
+  extends past the bar's — never a static decoration on a bar that already
+  shows everything, and never derived from `scrollLeft`/`scrollWidth`, which
+  the bar's `scroll-snap-align: center` throws off for the last tab. Update
+  on the bar's own `scroll`, plus `resize` and `load`.
+- 1081px+ is the desktop side rail (`.side-rail` in japanese-reader.css): it
+  replaces both the header's nav and the `.tabs` bottom bar outright and
+  lists every destination as an equally-weighted row with its own color from
+  the `--nav-*` token set in `palettes/washi-sumi.css`. Each rail link
+  duplicates a `data-tab` already present in `.tabs`; add a destination to
+  both nav copies, never just one, or it's reachable on one width but not the
+  other. Any UI that shows a live count next to a destination (only the Review
+  due badge today) must key off a shared `[data-badge="..."]` attribute rather
+  than an element `id`, since more than one nav copy of that destination can
+  be mounted at once — see `renderReviewStats()`.
+- Anything that changes cards or known state must refresh every render
+  function that owns a piece of it: `renderWords()` (known chips, readable
+  compounds, lookup), `renderMyWords()` (saved deck, study packs), and
+  `renderProfilePanel()`. All three read the same stores but render
+  separately, and a missed call shows a stale count rather than failing
+  visibly — `refreshKnownEverywhere()` is the one place that already calls
+  all of them, so prefer routing a new known-state mutation through it
+  rather than hand-picking which renders to call.
+- Tab changes return phone layouts to the top of the new workspace and keep
+  `aria-current` synchronized with the active panel.
+- Sample passages swipe horizontally on phones. Primary touch controls should
+  be at least 44px high without enlarging desktop controls.
+- Read details use the inline sticky sidebar on desktop and an anchored bottom
+  sheet above the tab bar on phones. The close button, scrim, and Escape must
+  all dismiss it; do not add navigation or persistence for sheet state.
+- Keep Kanji search and the horizontally swipeable JLPT levels visible on
+  phones. Stroke, learning-state, sort, and view controls belong in the
+  ephemeral advanced-filter disclosure; its badge reflects active filters.
+- Starting any family, phonetic, contrast, or mix session on a phone scrolls
+  the study workspace beneath the sticky header. Hidden answers must not take
+  vertical space, and study controls remain at least 44px high.
+- The shared text editor belongs only to Analyze and Read. Kanji, Review, and
+  My Words open directly at their independent workspace content.
+- Review uses a two-column grade grid on phones. My Words turns saved-deck
+  table rows into labelled cards and stacks export/backup actions at the
+  narrowest width; desktop retains the table.
+- The phone Radical Tree keeps the dictionary panel visible below a compact
+  drawing stage, uses horizontal component chips, and preserves 44px controls,
+  drill-down, Back, Close, replay, and focus restoration.
+
+## Kanji library conventions
+
+- The Kanji tab is text-independent and uses the already-loaded
+  `data/kanjidic.json`; do not make KanjiVG a prerequisite for browsing.
+- Each result card carries two actions in its corner: a `[data-kanji-known]`
+  toggle for marking without opening the card, and the Relationship Map doorway.
+  The toggle reuses `kotoba-lab:known-kanji` and the shared refresh path, and
+  carries `aria-pressed` plus a Mark/Unmark label because its text does not
+  change between states.
+- Keep catalog logic pure in `kanji-browser.js`. The DOM renderer stays in
+  `app.js`, with bounded result rendering and one delegated
+  `[data-kanji-tree]` doorway per card.
+- Search covers glyph, English meaning, on'yomi, and kun'yomi with normalized
+  hiragana/katakana and punctuation-insensitive readings.
+- Filters add no persisted preferences. Known/unknown uses the existing
+  `kotoba-lab:known-kanji` set.
+- Toggling a card's own known button patches that card in place and passes
+  `skipKanjiBrowser` to `refreshKnownEverywhere()`. Rebuilding the grid replays
+  the staggered entrance animation on every card, which reads as the page
+  flashing — unbearable when marking several kanji in a row. `patchKanjiCardKnown()`
+  mirrors the known-state parts of the card template, so the two change together.
+  When a known-state filter is active the grid must still rebuild, because the
+  filter decides which cards belong in the results at all.
+- `buildKanjiFamilies()` owns family membership. Exact strokes are
+  single-membership; on’yomi and kun’yomi are multi-membership, so one kanji
+  may appear in several reading families.
+- Split readings on `、`, normalize hiragana/katakana for matching, remove
+  source `*` markers, and compare the full spoken kun reading without
+  dictionary okurigana parentheses. Keep the original dictionary strings on
+  cards.
+- Shared-reading families require at least two matching kanji and sort by
+  family size, then Japanese label. Exact-stroke families sort numerically.
+- Radical families use KanjiVG's `kvg:radical` marker and normalize variant
+  shapes through `kvg:original` (for example, ⺡ under 水). Component families
+  use the direct labelled children shown by the first Radical Tree separation;
+  keep visual variants distinct. Both require at least two matching kanji and
+  preserve the current card sort inside each family.
+- Load `data/kanji-families.json` only when a radical/component view is chosen.
+  Do not load the 5.84 MB stroke-path artifact until a Radical Tree doorway is
+  opened. Both generated artifacts come from the same pinned KanjiVG release
+  and are covered by the manifest/check command.
+- The selected family is ephemeral UI state. Do not add a localStorage key for
+  browsing preferences.
+
+### Component lookup
+
+- The "Build from components" picker is the one way into this library that does
+  not require naming the kanji first. It is collapsible at every width, unlike
+  "More filters", which only collapses on phones: 1,431 shapes is not a thing
+  to open by default.
+- Its index (`js/component-lookup.js`) is TRANSITIVE, and that is the single
+  place in the application where "component" means anything other than
+  KanjiVG's direct children. It is a deeper reading of the same committed
+  structure, not a looser one, and it exists because a learner picking shapes
+  off the page cannot know that 口 reaches 語 only through 吾. Keep the family
+  views direct-only; do not unify the two.
+- Selections intersect (AND). Unusable shapes are dimmed and disabled, never
+  hidden — the picker must not reflow under a finger — and a selected shape is
+  never dimmed, or it could not be undone.
+- Order by usage count, ties by code point. Do not introduce an "importance",
+  "difficulty", or "commonness" ranking this index cannot count.
+- Variant shapes with no dictionary entry of their own (氵, 艹, ⻖ — 168 of
+  1,431) get no meaning and therefore no meaning search. Do not borrow the
+  canonical radical's gloss: the association is dominant, not certain (氵 with
+  水 in 317 of 329 kanji), and promoting it would be exactly the kind of
+  threshold judgment the phonetic-signal and false-friend work refuses to make.
+- Selection is ephemeral, like the selected family. No storage key, no journal
+  event, cleared by "Reset filters" — but NOT by collapsing the picker, since a
+  filter that silently switches itself off is worse than a badge saying it is
+  still on.
+
+## Radical Alchemy conventions
+
+- Alchemy is its own tab (`data-panel="alchemy"`, `renderAlchemyTab()`), not a
+  doorway inside the Kanji library. **This reverses the original rule below
+  on 2026-08-16, by explicit owner sign-off** — kept for the reasoning, not
+  as current guidance:
+  > Keep Alchemy inside the Kanji library rather than adding another primary
+  > tab. Closing returns focus to its doorway; revealed answers reuse the one
+  > delegated `[data-kanji-tree]` route.
+
+  Same reversal, same day, same reason as the Achievements rule in Vocabulary
+  conventions below: one focus per destination instead of a feature tucked
+  inside an unrelated tab.
+  There is no more open/close state machine — `renderAlchemyTab()` renders
+  on arrival and re-renders (never restarts) an in-progress session on
+  revisit, the same pattern `refreshReview()`/`renderKanjiBrowser()` already
+  use. Revealed answers still reuse the one delegated `[data-kanji-tree]`
+  route, unchanged. "Study recipe trail" hands off into the Kanji tab's own
+  `#kanji-study-workspace`, which stayed there rather than being duplicated —
+  the handoff calls `switchTab('kanji')` before opening it.
+- A formula must have exactly two distinct, single-glyph direct labelled
+  KanjiVG components, and its sorted pair must resolve to one dictionary kanji.
+  Never ask an ambiguous formula or imply the components are an etymology.
+- Today’s Brew is deterministic by local date and normally selects one target
+  from each JLPT level N5 through N1. Distractors are dictionary kanji, and the
+  correct target must always remain among the four choices.
+- Challenge position, choices, answers, and score are session-only. Add no
+  storage key, profile field, or content-bearing usage event for the lab.
+- Use only `data/kanji-families.json` to prepare questions. Loading the lab must
+  not fetch `data/kanjivg.json`; that artifact remains lazy behind Radical Tree.
+- Visual feedback must include text and symbols in addition to color. Preserve
+  44px phone controls, number-key answers, bounded arrow navigation, Escape,
+  focus restoration, and a still `prefers-reduced-motion` path.
+- Keep `laboratory-backdrop.webp` atmospheric and text-free. It must never carry
+  kanji, component evidence, labels, controls, or readable pseudo-writing; keep
+  the optimized deployed file below 150 KB unless a documented visual need
+  justifies more.
+- Keep functional Alchemy symbols in `alchemy-icons.svg` with `currentColor`
+  strokes. Do not replace ingredient glyphs, results, or controls with raster
+  artwork. Any added motion must be included in the reduced-motion shutdown.
+- Missing Ingredient may hide only one of the verified pair; Reverse Brewing
+  must offer complete verified pairs. A transformation chain is valid only when
+  each result glyph is one of the next recipe's two direct components.
+- Known filtering limits question targets, not the evidence-safe distractor
+  pool. Do not silently remove a current question after its known state changes.
+- Recipe history lives only on the open Alchemy session. Its temporary study
+  handoff deduplicates brewed target kanji and reuses `createKanjiStudySession`;
+  leaving the lab or study must not write history or scores anywhere.
+
+## Vocabulary conventions
+
+- Reward the learner with real consequences, never invented ones. `unlockedBy()`
+  reports the compounds a newly known kanji actually completed, read out of
+  committed dictionary data. This still governs kanji-unlock feedback,
+  Radical Alchemy, and everything else in the app.
+
+  **Achievements is the one deliberate exception, reversed on 2026-08-16 by
+  explicit owner sign-off**, using Thinking Hub's own gamified Achievements
+  page as the reference this time rather than a shape to avoid. Kept for the
+  reasoning, not as current guidance for that page:
+  > Do not add points, levels, or streak pressure; the idea garden rejects
+  > guilt-heavy mechanics deliberately.
+  >
+  > Milestones are derived, never recorded. `buildMilestones()` recomputes
+  > from current profile numbers, so there is no earned-badge state to store,
+  > migrate, or resynchronise after a profile import.
+  >
+  > Show only milestones already passed, plus at most one nearby next step.
+  > Never render locked slots, badge grids, tier progress, or percentages: an
+  > empty slot turns "what you can read" into "what you have not done", which
+  > is the guilt-heavy shape `IDEA_GARDEN.md` rejects.
+
+  What actually changed, in `js/achievements.js` and `js/storage.js`'s
+  `createAchievementLog`: 24 achievements across 7 categories each carry XP;
+  total XP maps to one of 8 hand-named levels (白紙→皆伝); a review streak and
+  90-day review-activity heatmap read `reviewLog`; and unlock state is now
+  **recorded**, in a sixth `localStorage` key (`kotoba-lab:achievements`,
+  reversing the five-key doctrine) — once earned, an achievement stays earned
+  even if the underlying stat later regresses, and it round-trips through
+  backup export/import (`BACKUP_VERSION` 3) and the full data-wipe flow like
+  every other store. Every achievement is visible from a fresh profile, locked
+  ones grayed out with their XP value. The one thing kept from the original
+  objection: a locked badge states what it's worth, never a "N to go"
+  countdown — that specific guilt-heavy framing is still avoided. This
+  reversal is scoped to Achievements; no other feature gained invented points.
+- Achievements live on their own **Achievements** tab (`data-panel="achievements"`,
+  `renderAchievements()` in `js/app.js`), not inside Profile & Data. **This
+  reverses the original rule below on 2026-08-16, by explicit owner sign-off**
+  — kept for the reasoning, not as current guidance:
+  > Milestones live inside Profile & Data as content. They must not become
+  > their own tab or panel — a dedicated page fails the "would the solo user
+  > open this weekly?" test, and the same call was already made in a sibling
+  > project by relabelling its Achievements tool to Profile.
+
+  The reversal is scoped to *this* project: Kotoba Lab is not the
+  business-register tool Thinking Hub is, and the owner wants each nav
+  destination to hold one focus rather than several — Settings had drifted
+  into profile summary + dashboard + usage journal + import/export +
+  milestones all at once.
+- `knownToast()` is the single message for every path that marks a kanji known —
+  Kanji cards, the Radical Tree, and the Read info panel. Add new paths to it
+  rather than writing another toast, or the feedback drifts apart.
+- `unlockedBy()` must be called after the toggle, so the character already counts
+  as known and the unlocked set is simply the compounds containing it whose other
+  kanji were known already.
+
+### "Appears in" — words containing one kanji
+
+- `wordsContaining()` returns `{ total, words }`, the same shape `unlockedBy()`
+  and `buildReadableCompounds()` use — never a bare array. A caller that needs
+  the honest count (a "6 of 58" label, a "see all N" doorway) must never re-scan
+  the vocabulary to get it.
+- It deliberately excludes the bare kanji itself from both the list and the
+  total — a word cannot "contain" only itself. `js/word-browser.js`'s substring
+  search does not exclude it, so the two can report counts one apart for the
+  same glyph. Both are correct for what they promise; do not "fix" one to match
+  the other.
+- Every surface that shows this list gets a save toggle, not just a known
+  toggle: recognising a word and choosing to practise it are different acts,
+  and this list is exactly where a reader forms the intent to practise one seen
+  beside the kanji it belongs to. The Read info panel reuses the document-level
+  `data-compound-save` handler directly. The Radical Tree overlay cannot — it
+  is injected content living in `document.body` — so it threads
+  `isWordSaved`/`toggleWordSaved`/`onWordSavedChange` through exactly like the
+  existing `isWordKnown`/`toggleWordKnown`/`onWordKnownChange` triple.
+- When the total exceeds what is shown, offer a doorway to the rest through the
+  Word Lookup tab, pre-filled and with its filters reset. Never build a second
+  paginated word list — `js/word-browser.js` already is one.
+
+- Keep vocabulary search pure in `js/word-browser.js`, mirroring the split
+  between `kanji-browser.js` and its DOM renderer in `app.js`.
+- Reading search normalizes katakana to hiragana and strips separators, the same
+  `readingForm()` rule the kanji library uses, so a query typed either way
+  matches. English matching applies only to plain-ASCII queries.
+- Sort easiest first by JLPT, then shorter words, then **code point** order.
+  Never `localeCompare`: collation depends on ICU being present, and the list
+  must sort identically in every browser and in Node.
+- Results are bounded but the total is always reported honestly, so the page
+  never implies it is the whole set.
+- "Readable" means every kanji in the word is already marked known. It reuses
+  `isReadableCompound()` rather than a second definition.
+- Every vocabulary list uses the shared `wordRowMarkup()` so the compound card
+  and the lookup stay identical and gain features together.
+
+### Counters
+
+- `hasCounterSense()`/`counterGloss()` match on the dictionary's own gloss text
+  (a semicolon-separated clause containing "counter for") — never a hand-picked
+  list. All matches are shown; none are excluded for being obscure, archaic, or
+  a minor sense of a kanji whose main identity is something else entirely
+  (門 "gate" also, rarely, counts cannons — it stays in). Silently dropping any
+  of them would be inventing exactly the kind of importance judgment this
+  project refuses everywhere else — see the phonetic-signal lab and the
+  component picker's own ordering rule for the same stance elsewhere.
+- The count line must say plainly that this is every matching dictionary sense
+  and not a curated list. A textbook-style "here are the counters that
+  matter" framing would be a claim this project cannot back with evidence.
+- `counterGloss()` shows every counting clause a word's gloss states, joined —
+  never just the first. Some entries (丁) have no non-counter sense at all;
+  truncating to one clause would silently drop real information.
+- `wordRowMarkup()`'s `glossOverride` parameter exists for this and only this.
+  Do not reuse it to hide or reorder a word's ordinary senses elsewhere.
+
+### Review direction
+
+- `#srs-direction` picks how one card is *viewed* — `recognition`, `recall`, or
+  `cloze` — through `cardMode()`. It never touches scheduling: one deck entry
+  has one SM-2 card whichever way it is shown, and a second schedule per
+  direction would double every entry's state for a theory nobody has tested in
+  use yet.
+- Every mode degrades to recognition rather than refusing a card, since the
+  learner sets a direction once and the deck decides per entry whether it can
+  honour it: recall needs a gloss, cloze needs a sentence that survives
+  `clozeParts()`. Say which is missing in the card meta; do not silently show
+  an ordinary face.
+- The cloze front carries the gloss as its clue. Without one the prompt is
+  "some word goes here", which most sentences answer more than one way.
+- The stored sentence is otherwise still back-of-card only. Putting it on the
+  front of a recognition or recall card would give the answer away, which is
+  the whole reason it lives on the back.
+
+## Kanji family study conventions
+
+- A study session snapshots the selected family after the current search,
+  JLPT, stroke, known-state, and sort filters have been applied. It does not
+  silently expand to the unfiltered family.
+- Reveal progress, order, and the current card are session-only. Closing,
+  changing a family/filter, or reloading ends that progress; do not add a
+  storage key for it.
+- Known-state changes reuse `kotoba-lab:known-kanji` and must refresh the Read,
+  My Words, Kanji browser, Review, and study-workspace views together.
+- Keep study controls keyboard reachable. Left/right navigation resets the
+  answer and returns focus to Reveal; Space activates Reveal through the
+  focused button. Radical Tree close returns focus to its study doorway.
+- Shuffle & restart randomizes the full session snapshot and clears reveal
+  progress without changing known-kanji state.
+
+## Kanji Relationship Map conventions
+
+- Every connection must expose its evidence. Approved primary reasons are a
+  shared canonical radical, direct visual component, normalized on’yomi, or
+  normalized kun’yomi; do not infer etymology or semantic similarity.
+- Stroke proximity is supporting evidence only. It may strengthen an existing
+  relationship but must never create a neighbor by itself.
+- Structural evidence outranks readings. Smaller families receive only a
+  modest rarity bonus, and reading-only neighbors stay bounded so a common
+  reading cannot fill the future canvas.
+- Reuse `data/kanji-families.json` for structure. Building or browsing a
+  relationship neighborhood must not load the 5.84 MB KanjiVG stroke artifact.
+- Relationship indexes and navigation are ephemeral. Do not add a storage key;
+  known state must continue to use `kotoba-lab:known-kanji` when UI arrives.
+- Relations filters apply before the neighborhood limit so displayed counts
+  remain honest. Evidence filters may disable all primary reasons; stroke
+  proximity remains supporting-only and cannot survive by itself.
+- Keep the embedded canvas legible: mixed structural/reading maps show at most
+  four nodes per arc. Additional ranked one-hop results belong in the desktop
+  gallery or mobile swipe lanes, not on overlapping canvas coordinates.
+- Relations search, filters, selected root, and history are session-only. Reuse
+  the existing durable study stores (plus the optional payload-free journal)
+  and keep structural data lazy until the tab or another relationship doorway
+  is opened.
+- Two-hop graphs are capped at 36 visible nodes and depth two. Balance direct
+  structural and reading branches when both exist; expanding one branch adds
+  context without changing the root. Do not draw redundant cross-branch edges.
+- Keep the one-hop Neighborhood view as the default. Desktop networks may use
+  zoom controls; phones replace the graph with Structure and Readings swipe
+  lanes rather than shrinking the full canvas.
+
+## Kanji Constellation Atlas conventions
+
+- A constellation center is one direct visual component from the selected root
+  kanji. Lines mean only “contains this direct component”; never present them as
+  etymology, historical descent, or semantic similarity.
+- Keep each sky deterministic and capped at 24 visible kanji. Keep the selected
+  root visible before applying the cap, then use stable JLPT, stroke, and code
+  point order so the same family does not jump between visits.
+- Known-star lighting must read only `kotoba-lab:known-kanji`. Unknown stars are
+  visually quieter, never hidden or described as unlearned facts.
+- Component choice, scroll position, and constellation layout are ephemeral.
+  Add no localStorage key, usage payload, or profile field for the experiment.
+- Keep Constellation inside the Relations workspace and leave Neighborhood as
+  the default. A star doorway returns to the ordinary one-hop Relations view.
+- Phones keep the full bounded sky in a touch-pannable viewport rather than
+  shrinking nodes until labels or targets become illegible.
+- On desktop, Relations may widen independently of the shared reading measure.
+  Use the larger Atlas geometry only from 1440 px upward, keep common laptop
+  widths free of horizontal scrolling, and preserve the existing phone canvas.
+- Atlas focus mode is ephemeral UI state: keep its explicit button keyboard
+  reachable, let Escape restore focus to that button, exit when leaving Atlas or
+  Relations, and never add it to localStorage, profile export, or usage payloads.
+- Selecting a star changes only ephemeral focus. Show its dictionary meaning,
+  JLPT level, stroke count, on’yomi, and kun’yomi before offering deliberate
+  actions; a star tap must not immediately leave the Atlas.
+- Re-rooting stays in the Atlas and preserves the current direct component when
+  that component belongs to the new root. Synchronize the Relations seed and
+  search field so subsequent Neighborhood and Network views use the same root.
+- Known-state control reuses the existing global refresh path. Radical Tree
+  close must restore focus to the Atlas doorway that opened it.
+- Reading routes use only normalized on’yomi and kun’yomi shared by visible
+  stars. Cap the sky at 12 routes and each reading at three edges, prefer the
+  smallest visible reading families, and label every route with its exact
+  dictionary evidence. Never imply semantic similarity or etymology.
+- Solid spokes always mean the direct component; dashed indigo and vermilion
+  routes mean shared on’yomi and kun’yomi. Keep the route toggle and 80–120%
+  zoom session-only, preserve 44 px phone controls, and keep the whole sky
+  touch-pannable at every zoom level.
+- Motion may breathe the center, twinkle known stars, or travel along route
+  dashes, but it must not move star positions. Disable all Atlas animation and
+  transition effects under `prefers-reduced-motion: reduce`.
+- Study only the unknown stars in the current bounded sky and snapshot them
+  through the existing ephemeral family-session engine. Keep Return to Atlas
+  explicit; revealing, order, challenge choice, and challenge progress add no
+  persistence. Known-state changes still use the one approved kanji key.
+- Atlas packs contain every visible star and reuse the versioned study-pack
+  sanitizer, so extra layout, root, known, challenge, and route fields cannot
+  escape. Quick challenges are derived only from the selected direct component
+  and exact normalized dictionary readings; show explanations and no score.
+- The optional journal may count only fixed `atlas.open` and `study.atlas`
+  events. Never put a kanji, component, reading, challenge choice, pack title,
+  or other payload in an event name or stored journal field.
+
+## Phonetic Component Lab conventions
+
+- A signal is a measured correlation between one direct visual component and
+  the listed on’yomi of filtered family members. Never label it an etymology,
+  historical derivation, or formal phonetic-role classification.
+- Require at least three family members with on’yomi, at least two matches for
+  the dominant normalized reading, and at least 50% consistency. Show evidence
+  as matches/readable members and keep exceptions in the practice session.
+- Count each normalized reading at most once per kanji. Multi-reading kanji may
+  support several candidate readings, but only the deterministic dominant
+  signal is presented for a component.
+- Phonetic sessions are ephemeral and reuse the existing family-study surface,
+  known-kanji state, filters, sorting, and Radical Tree doorway. Do not add a
+  score or progress storage key.
+
+## Kanji Contrast Lab conventions
+
+- Contrast sets contain three to five filtered kanji that share one direct
+  visual component and have distinct dictionary meanings. Preserve the active
+  card sort when choosing the bounded set.
+- Meaning questions are always available. Use an on’yomi question only when
+  that normalized reading uniquely identifies the current answer inside its
+  set; otherwise fall back to meaning instead of presenting an ambiguous clue.
+- Keep the answer glyph hidden until a real choice is made. After reveal, show
+  meaning, both dictionary reading fields, known-state control, and the same
+  Radical Tree doorway used elsewhere.
+- Contrast sessions and scores are ephemeral, filter-aware, and use no new
+  storage key. Shuffle & restart clears both progress and answers.
+
+## False-Friend Museum conventions
+
+- Only the homophones exhibit type is built. A group's evidence is an exact
+  match on the committed dictionary reading — never a claimed visual or
+  semantic similarity, which is why deceptive-shared-components and
+  near-synonym-trap exhibits stay unbuilt rather than approximated; see the
+  reasoning kept in `IDEA_GARDEN.md`. Similar-looking kanji is not a
+  separate exhibit here — it is already the existing Kanji Contrast Lab.
+- Groups are multi-character words only, 2–4 members, distinct dictionary
+  meanings, sorted by graded-member count then size then reading — the same
+  shape `buildContrastSets()` already uses for the Kanji library, just keyed
+  by reading instead of shared component. A bare single-kanji entry sharing
+  an on'yomi with another is the Kanji library's own reading-family view,
+  not a false-friend exhibit.
+- The reading can never be a question's clue: it is identical across every
+  choice in a group by construction, so only the meaning distinguishes them.
+- Exhibit choice, question, answer, and score are ephemeral — no storage
+  key — and picked with `Math.random()` rather than a date-seeded "today's
+  exhibit," unlike Radical Alchemy's brew: this is a lighter, revisitable
+  browsing card in the Words tab, not a daily habit loop, and does not need
+  its own tab.
+- Every group member reuses the existing `wordRowMarkup()` row (known/save),
+  so Known and Save behave identically to every other vocabulary list in the
+  app with no dedicated wiring.
+- The optional journal may count only the fixed `study.falsefriends` event,
+  recorded once per answered question. No word, group, reading, or answer
+  choice may enter it.
+
+## Text-to-Study Journey conventions
+
+- Rank only unknown kanji from the active text, primarily by occurrence count
+  and secondarily by the number of distinct tokenizer words they unlock. Keep
+  the default route bounded to six kanji.
+- Coverage projections count kanji occurrences, matching the Analyze coverage
+  meter. Label the result as projected coverage, never a fluency estimate.
+- Derive words and sentence contexts from the current tokenizer pass. Do not
+  call an external corpus or manufacture example sentences.
+- Journey routes, reveal progress, and navigation are temporary. Mark known is
+  the only persistent action and must reuse `kotoba-lab:known-kanji`; finishing
+  returns to the existing Read view of the unchanged source text.
+
+## Family Mix Challenge conventions
+
+- Mix mode is optional and available for exact-stroke, on’yomi, kun’yomi,
+  radical, and direct-component families. Keep phonetic signals and contrast
+  sets in their dedicated practice modes.
+- Require two to five selected families. Exclude a kanji when it belongs to
+  more than one selected family so every question has exactly one valid answer.
+- Build at most 20 questions in balanced round-robin family order before any
+  shuffle. Preserve the filtered family snapshots and their current card sort.
+- Mix selection, score, order, and progress are ephemeral. Shuffle & restart
+  clears answers and progress; known state and Radical Tree use existing paths.
+
+## Favorites conventions
+
+- A favorite means "I like this" and nothing else. It must never affect
+  coverage, unlock feedback, the review queue, an achievement, or the usage
+  journal. **The moment a favorite affects a number it has become a progress
+  mark**, which is the one thing it must not be.
+- Keep the wording in the collection register — keep, kept, favorite — never
+  learn, study, master, or complete. The Shelf shows a count and never a
+  target: no "of", no percentage, no next milestone, no empty slots.
+- Favorites are independent of known-state and of the deck. A kanji nobody can
+  read yet is a perfectly good favorite; unstarring one must never touch either
+  other set.
+- They ARE in profile backups (v4), by owner decision on 2026-08-31: they are
+  the only collection here that cannot be re-derived. Merging unions them and
+  never un-keeps, matching the known sets.
+- `refreshFavoritesEverywhere()` is deliberately much smaller than
+  `refreshKnownEverywhere()` — a favorite changes no meter, no queue and no
+  badge, so only the surfaces that actually draw a heart redraw.
+
+## Persistent state
+
+There are exactly eight localStorage keys. Radical Tree and study packs add
+none; the fifth belongs only to the optional local usage journal, the sixth is
+the achievement ledger — added 2026-08-16, reversing the original five-key
+doctrine by the same explicit owner sign-off covered in Vocabulary conventions
+— and the seventh and eighth are the favorite sets, added 2026-08-31 by owner
+decision so that a collection nothing can re-derive is not lost to a browser
+reset:
+
+- `kotoba-lab:deck`
+- `kotoba-lab:known-words`
+- `kotoba-lab:known-kanji`
+- `kotoba-lab:review-log`
+- `kotoba-lab:usage-journal`
+- `kotoba-lab:favorite-kanji` — "I like this", never a progress mark. In
+  backups (v4) because nothing can re-derive it; see Favorites conventions.
+- `kotoba-lab:favorite-words` — the same, for words. Split from the kanji set
+  for the reason known-state is split.
+- `kotoba-lab:achievements` — id → unlock timestamp (ms), written by
+  `js/storage.js`'s `createAchievementLog`. Unlike the usage journal, this one
+  **is** included in profile backups (`BACKUP_VERSION` 3) and the full
+  data-wipe flow, same as deck/known/review-log: it's earned progress, not
+  behavioral telemetry.
+
+The journal is off by default. It may store only allowlisted event counts,
+daily sessions, and visible active minutes for the last 90 days. Never add an
+event payload, dynamic event name, pasted text, word, kanji, search, filename,
+answer, grade, or individual-action timestamp. Keep it outside profile backups
+and study packs so sharing a profile never shares behavioral data.
+
+Usage insights must remain cautious aggregate interpretations. Ignore unknown
+events, require a minimum activity sample, cap visible prompts, and always
+offer a neutral no-friction state. The current due-card count may be supplied
+at render time but must not be copied into the journal. Navigation suggestions
+may target only the existing fixed app tabs.
+
+Usage reports are a separate sharing surface, not profile backups. They may
+contain only overall activity counts, the six approved feature totals, current
+aggregate profile metrics, and whitelisted signal copy. Never export raw event
+names, daily keys, journal JSON, last-review dates, or caller-provided labels.
+Preview the exact Markdown before sharing. Record `report.export` only after
+the copied/downloaded snapshot is built so it never counts itself.
+
+## Profile and study-pack conventions
+
+- Full profiles use the existing `kotoba-lab-backup` format marker. Version 2
+  adds app version and derived counts; version 1 remains readable.
+- Choosing a profile file must only inspect it. Write the four profile stores only after
+  the user chooses safe merge or confirms full replacement.
+- Safe merge remains the recommended default: add missing cards/items, keep the
+  more recently reviewed schedule, and take the maximum review count per day.
+- Study packs use the separate `kotoba-lab-study-pack` marker and contain only
+  kanji, meaning, readings, JLPT, and stroke metadata. Never include pasted
+  text, sentence context, known state, scheduling, or review history.
+- Imported packs are temporary family-study sessions. Do not add another
+  storage key for packs, import history, source choice, or progress.
+- Dashboard category clearing changes only that collection. Full reset must
+  show its scope and require the exact typed phrase before writing empty values
+  to all four profile stores and clearing/disabling the usage journal; do not
+  rely on a single browser confirmation dialog.
+- Keep `APP_VERSION` in `js/app.js` synchronized with `package.json` when the
+  profile format or public data-management UI ships. Since the offline cache is
+  named from it, `sw.js` must carry the same value and every release that changes
+  a cached file must bump all three.
+
+## Verification
+
+```bash
+npm test
+npm run kanjivg:check
+```
+
+`npm test` must keep the explicit `node --test "js/*.test.js"` glob. Browser QA
+must cover Read (including tap-to-inspect in all three view modes and the
+Anki export's optional romaji column), Review, My Words, and Kanji-library
+doorways,
+search/filter/group/family switching/paging (including lazy structural-family loading),
+family-study start/reveal/move/shuffle/known/tree/close behavior,
+phonetic-signal thresholds/evidence/prediction scoring,
+contrast-set bounds/distinct clues/answer scoring,
+text-journey ranking/coverage/context/session navigation,
+family-mix selection/ambiguity exclusion/interleaving/scoring/restart,
+alchemy recipe uniqueness/determinism, missing/reverse answers,
+transformation-chain continuity, known filtering, and session history,
+profile v1/v2 inspection/merge/replace preview and study-pack
+privacy/export/import/session handoff,
+explode/drill/back, `Esc` focus restoration,
+known-state propagation, atomic/missing entries, reduced motion, and clean
+offline-first-load failure. The only module script in `index.html` remains
+`js/app.js`; its imports define load order.
+
+Offline QA needs a real browser, because a service worker cannot be driven by
+`node --test` and Electron-based review browsers refuse to register one at all.
+Cover installing to an Android home screen (sharp launcher icon, standalone
+window, maskable icon surviving a circular crop), launching in airplane mode,
+Radical Tree opening offline on an install that never opened it while online,
+the kuromoji download before and after, an update prompt appearing on an
+`APP_VERSION` bump without auto-reloading, an interrupted precache leaving the
+previous version working, and silent degradation in a browser without module
+service worker support.

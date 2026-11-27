@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Kotoba Lab KR — 일본어 읽기와 한자 학습</title>
+<link href="favicon.png" rel="icon" type="image/png"/>
+<link href="manifest.webmanifest" rel="manifest"/>
+<meta content="#c8443c" name="theme-color"/>
+<link href="assets/icons/icon-192.png" rel="apple-touch-icon"/>
+<meta content="Analyze Japanese text, explore kanji and radicals, save words, and study with browser-only spaced repetition." name="description"/>
+
+<meta content="website" property="og:type"/>
+<meta content="Kotoba Lab — Japanese reading, kanji &amp; study" property="og:title"/>
+<meta content="Analyze Japanese text, explore kanji and radicals, and study locally in your browser." property="og:description"/>
+
+
+<meta content="summary_large_image" name="twitter:card"/>
+<meta content="Kotoba Lab — Japanese reading, kanji &amp; study" name="twitter:title"/>
+<meta content="Analyze Japanese text, explore kanji and radicals, and study locally in your browser." name="twitter:description"/>
+
+<!-- fonts -->
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&amp;family=Fraunces:opsz,wght@9..144,600;9..144,700&amp;family=Zen+Old+Mincho:wght@400;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<!-- Shared UI primitives, then the washi-sumi skin, then this tool's layer.
+     All styles are local so the application remains portable. -->
+<link href="ui-base.css" rel="stylesheet"/>
+<link href="palettes/washi-sumi.css" rel="stylesheet"/>
+<link href="japanese-reader.css" rel="stylesheet"/>
+</head>
+<body>
+<!-- Below 1081px (phone + tablet) this is branding only — a slim sticky strip,
+     no navigation. All eleven destinations live in the single horizontally
+     scrollable .tabs bar below instead, fixed to the bottom of the viewport.
+     At 1081px+ this header is hidden and the .side-rail beneath it takes
+     over — see the "desktop side rail" block in japanese-reader.css. -->
+<header class="site-head">
+<div class="wrap head-inner">
+<button aria-label="Kotoba Lab — go to Analyze (home)" class="brand" data-tab="analyze" title="Kotoba Lab KR — 홈" type="button">
+<span aria-hidden="true" class="brand-mark">言</span>
+<div>
+<h1>Kotoba Lab KR</h1>
+<p class="tagline">일본어 읽기, 한자 탐색 및 학습.</p>
+</div>
+</button>
+</div>
+</header>
+<!-- Below 1081px only (see japanese-reader.css): the single navigation
+     surface, fixed to the bottom of the viewport and horizontally
+     scrollable/swipeable so all eleven destinations fit without a second
+     menu sharing the header. Every button shares one data-tab vocabulary
+     with the desktop side rail below, and switchTab() already treats every
+     element sharing a data-tab as one nav group (see js/app.js), so no JS
+     wiring changes were needed to add the five formerly header-only
+     destinations here. -->
+<nav aria-label="Main navigation" class="tabs">
+<button aria-current="page" class="tab is-active" data-tab="analyze"><span aria-hidden="true" class="tab-icon">析</span><span class="tab-label">텍스트 분석</span></button>
+<button class="tab" data-tab="read"><span aria-hidden="true" class="tab-icon">読</span><span class="tab-label">읽기</span></button>
+<button class="tab" data-tab="kanji"><span aria-hidden="true" class="tab-icon">漢</span><span class="tab-label">한자</span></button>
+<button class="tab" data-tab="alchemy" title="Radical Alchemy — combine components to discover kanji" type="button"><span aria-hidden="true" class="tab-icon">錬</span><span class="tab-label">한자 조합</span></button>
+<button class="tab" data-tab="relations"><span aria-hidden="true" class="tab-icon">縁</span><span class="tab-label">관계도</span></button>
+<button class="tab" data-tab="review"><span aria-hidden="true" class="tab-icon">復</span><span class="tab-label">복습</span><span class="tab-badge" data-badge="review-due" hidden=""></span></button>
+<button class="tab" data-tab="words"><span aria-hidden="true" class="tab-icon">語</span><span class="tab-label">단어</span></button>
+<span aria-hidden="true" class="tabs-divider" role="separator"></span>
+<button class="tab" data-tab="mywords" title="Deck — your saved review cards and portable study packs" type="button"><span aria-hidden="true" class="tab-icon">札</span><span class="tab-label">단어장</span></button>
+<button class="tab" data-tab="achievements" title="Achievements — badges, XP, levels, and streaks earned from real study" type="button"><span aria-hidden="true" class="tab-icon">証</span><span class="tab-label">업적</span></button>
+<button class="tab" data-tab="insights" title="Insights — your optional local usage journal and friction radar" type="button"><span aria-hidden="true" class="tab-icon">計</span><span class="tab-label">학습 분석</span></button>
+<button class="tab" data-tab="profile" title="Settings — profile summary, local data dashboard, backup, and import" type="button"><span aria-hidden="true" class="tab-icon">設</span><span class="tab-label">설정</span></button>
+</nav>
+<!-- 1081px+ only (see japanese-reader.css): the left side rail replaces the
+     header and the bottom .tabs bar outright, so every destination is a
+     first-class, equally-sized button with its own color instead of a
+     scrollable strip. Every button below duplicates a data-tab value from
+     the bottom bar above; switchTab() already treats every element sharing
+     a data-tab as one nav group (see js/app.js), so no JS changes were
+     needed to add this. -->
+<nav aria-label="Main navigation" class="side-rail">
+<button aria-label="Kotoba Lab — go to Analyze (home)" class="side-rail-brand" data-tab="analyze" title="Kotoba Lab — go to Analyze (home)" type="button">
+<span aria-hidden="true" class="brand-mark">言</span>
+<span class="side-rail-brand-name">Kotoba Lab</span>
+</button>
+<div class="side-rail-links">
+<button aria-current="page" class="tab rail-link is-active" data-nav-color="analyze" data-tab="analyze"><span aria-hidden="true" class="tab-icon">析</span><span class="tab-label">텍스트 분석</span></button>
+<button class="tab rail-link" data-nav-color="read" data-tab="read"><span aria-hidden="true" class="tab-icon">読</span><span class="tab-label">읽기</span></button>
+<button class="tab rail-link" data-nav-color="kanji" data-tab="kanji"><span aria-hidden="true" class="tab-icon">漢</span><span class="tab-label">한자</span></button>
+<button class="tab rail-link" data-nav-color="alchemy" data-tab="alchemy"><span aria-hidden="true" class="tab-icon">錬</span><span class="tab-label">한자 조합</span></button>
+<button class="tab rail-link" data-nav-color="relations" data-tab="relations"><span aria-hidden="true" class="tab-icon">縁</span><span class="tab-label">관계도</span></button>
+<button class="tab rail-link" data-nav-color="review" data-tab="review"><span aria-hidden="true" class="tab-icon">復</span><span class="tab-label">복습</span><span class="tab-badge" data-badge="review-due" hidden=""></span></button>
+<button class="tab rail-link" data-nav-color="words" data-tab="words"><span aria-hidden="true" class="tab-icon">語</span><span class="tab-label">단어</span></button>
+<span class="side-rail-divider" role="separator"></span>
+<button class="tab rail-link" data-nav-color="deck" data-tab="mywords"><span aria-hidden="true" class="tab-icon">札</span><span class="tab-label">단어장</span></button>
+<button class="tab rail-link" data-nav-color="achievements" data-tab="achievements"><span aria-hidden="true" class="tab-icon">証</span><span class="tab-label">업적</span></button>
+<button class="tab rail-link" data-nav-color="insights" data-tab="insights"><span aria-hidden="true" class="tab-icon">計</span><span class="tab-label">학습 분석</span></button>
+<button class="tab rail-link" data-nav-color="settings" data-tab="profile"><span aria-hidden="true" class="tab-icon">設</span><span class="tab-label">설정</span></button>
+</div>
+</nav>
+<main class="wrap">
+<!-- Hidden during a normal HTTP startup so a slow dictionary fetch never
+       flashes an error. The tiny classic-script fallback below still runs when
+       file:// blocks the module, and reveals this after a genuine boot stall. -->
+<div class="boot-warning" hidden="" id="boot-warning">
+<strong>This page isn't running — it needs to be served over http.</strong>
+<p>Opened straight from the file system (<code>file://</code>), the browser blocks its
+    scripts and dictionary files, so nothing responds: pasting text does nothing, and the
+    tabs don't switch.</p>
+<p>Double-click <code>serve.cmd</code> in this <code>Kotoba-Lab</code> folder — it starts a
+    small local server and reopens this page properly. From a terminal, <code>npm start</code>
+    or <code>node serve.mjs</code> do the same.</p>
+</div>
+<script>
+    (() => {
+      const warning = document.getElementById('boot-warning');
+      if (location.protocol === 'file:') warning.hidden = false;
+      else window.__kotobaBootFallback = setTimeout(() => { warning.hidden = false; }, 4000);
+    })();
+  </script>
+<!-- Shown by app.js when ui-base.css is missing from this folder. Unlike the
+       banner above, scripts ARE running in that case — only the CSS is gone. -->
+<div class="boot-warning" hidden="" id="style-warning"></div><p class="hint" id="kr-dictionary-status">한국어 사전: 일부 한국어 뜻 제공 · 미등록 뜻은 영어로 표시됩니다.</p>
+<!-- shared input -->
+<section class="card input-card">
+<div class="ui-section-header">
+<span class="ui-section-title">텍스트</span>
+<span class="ui-section-line"></span>
+<span class="hint" id="charcount">0 chars</span>
+</div>
+<textarea class="textarea jp-input" id="input" placeholder="日本語のテキストをここに貼り付けてください…  (paste any Japanese text)"></textarea>
+<div class="input-actions">
+<div class="samples-row">
+<span class="label">예시</span>
+<div class="samples" id="samples"></div>
+</div>
+<button class="btn btn-ghost" id="clear">지우기</button>
+</div>
+<div class="tok-row">
+<label class="file-btn btn btn-ghost">텍스트 파일 가져오기<input accept=".txt,text/plain" hidden="" id="import-file" type="file"/></label>
+<label class="check"><input id="precise" type="checkbox"/> 정밀 형태소 분석 <span class="hint">(kuromoji · loads ~18 MB once, then offline)</span></label>
+<span class="hint" id="precise-status"></span>
+</div>
+</section>
+<!-- ANALYZE -->
+<section class="panel is-active" data-panel="analyze">
+<div class="grid-2">
+<div class="card">
+<div class="ui-section-header"><span class="ui-section-title">읽기 난이도</span><span class="ui-section-line"></span></div>
+<div id="readability"></div>
+</div>
+<div class="card">
+<div class="ui-section-header"><span class="ui-section-title">개요</span><span class="ui-section-line"></span></div>
+<div class="stat-row" id="overview"></div>
+<div class="ui-section-header" style="margin-top:14px"><span class="ui-section-title">JLPT 등급별 한자</span><span class="ui-section-line"></span></div>
+<div id="kanji-dist"></div>
+</div>
+</div>
+<div class="card">
+<div class="ui-section-header"><span class="ui-section-title">학습한 범위</span><span class="ui-section-line"></span></div>
+<div id="coverage"></div>
+</div>
+<section class="card" id="grammar-profile-card">
+<div class="ui-section-header"><span class="ui-section-title">문법 분석</span><span class="ui-section-line"></span></div>
+<div id="grammar-profile"></div>
+</section>
+<section aria-live="polite" class="card text-journey" id="text-journey">
+<div class="ui-section-header"><span class="ui-section-title">텍스트 기반 학습 경로</span><span class="ui-section-line"></span></div>
+<div id="text-journey-content"><p class="hint">일본어 텍스트를 붙여 넣어 학습 경로를 만들어 보세요.</p></div>
+</section>
+<div class="grid-2">
+<div class="card">
+<div class="ui-section-header"><span class="ui-section-title">한자 빈도</span><span class="ui-section-line"></span></div>
+<div class="table-scroll">
+<table class="freq"><thead><tr><th>#</th><th>한자</th><th class="num">횟수</th><th>JLPT</th></tr></thead>
+<tbody id="kanji-tbody"></tbody></table>
+</div>
+</div>
+<div class="card">
+<div class="ui-section-header"><span class="ui-section-title">단어 빈도</span><span class="ui-section-line"></span></div>
+<div class="table-scroll">
+<table class="freq"><thead><tr><th>#</th><th>단어</th><th class="num">횟수</th><th>JLPT</th></tr></thead>
+<tbody id="word-tbody"></tbody></table>
+</div>
+</div>
+</div>
+<div class="card">
+<div class="ui-section-header"><span class="ui-section-title">Anki 학습 단어 내보내기 (TSV)</span><span class="ui-section-line"></span></div>
+<div class="flash-controls">
+<label class="label inline">포함할 등급
+          <select class="select" id="flash-level">
+<option value="5">N5 이상</option>
+<option selected="" value="4">N4 이상</option>
+<option value="3">N3 이상</option>
+<option value="2">N2 이상</option>
+<option value="1">N1만</option>
+</select>
+</label>
+<label class="check"><input checked="" id="flash-ungraded" type="checkbox"/> 등급 미분류 단어</label>
+<label class="check"><input id="flash-romaji" type="checkbox"/> 로마자 열</label>
+<button class="btn" id="flash-copy">TSV 복사</button>
+<button class="btn btn-primary" id="flash-download">TSV 다운로드</button>
+</div>
+<p class="hint">Fields: <code>word · reading · meaning · JLPT level · sentence</code> (tab-separated), plus an optional trailing <code>romaji</code> column. Words picked off the frequency table have no sentence — that column is empty here, and filled for cards you saved while reading.</p>
+</div>
+</section>
+<!-- READ -->
+<section class="panel" data-panel="read">
+<div class="read-toolbar card">
+<label class="check"><input checked="" id="furigana" type="checkbox"/> 후리가나</label>
+<label class="check"><input id="furigana-hide-known" type="checkbox"/> 아는 단어의 후리가나 숨기기</label>
+<!-- Only enabled once a tokenizer that actually analyses grammar has run;
+           the instant segmenter emits no part of speech, so there is nothing
+           honest to color. See js/grammar.js. -->
+<label class="check" id="grammar-layer-label" title="Needs the precise tokenizer — turn it on under the text box"><input disabled="" id="grammar-layer" type="checkbox"/> 문법 표시</label>
+<label class="label inline">보기
+        <select class="select" id="read-view">
+<option selected="" value="original">원문 + 후리가나</option>
+<option value="kana">전체 가나 읽기</option>
+<option value="romaji">로마자</option>
+</select>
+</label>
+<div class="read-copy">
+<button class="btn btn-ghost" id="copy-kana" type="button">후리가나 복사</button>
+<button class="btn btn-ghost" id="copy-romaji" type="button">로마자 복사</button>
+</div>
+<!-- Deliberately two entries, not a hue per part of speech: red already
+           means "unknown / hard" here and the JLPT ramp owns difficulty, so the
+           layer marks the function words holding a sentence together and leaves
+           every content word in the reader's existing colors. -->
+<div class="legend" hidden="" id="grammar-legend">
+<span class="lg"><i class="sw sw-pos" data-pos="助詞"></i>조사</span>
+<span class="lg"><i class="sw sw-pos" data-pos="助動詞"></i>조동사</span>
+</div>
+<div class="legend">
+<span class="lg"><i class="sw jlpt-n5"></i>N5</span>
+<span class="lg"><i class="sw jlpt-n4"></i>N4</span>
+<span class="lg"><i class="sw jlpt-n3"></i>N3</span>
+<span class="lg"><i class="sw jlpt-n2"></i>N2</span>
+<span class="lg"><i class="sw jlpt-n1"></i>N1</span>
+<span class="lg"><i class="sw jlpt-ungraded"></i>—</span>
+</div>
+</div>
+<div class="grid-read">
+<div class="card reading-card"><div class="reading" id="reading"></div></div>
+<button aria-label="Close word details" class="info-scrim" id="info-scrim" tabindex="-1" type="button"></button>
+<div aria-live="polite" class="card info-card">
+<button aria-label="Close word details" class="info-close" id="info-close" type="button">×</button>
+<div id="info"></div>
+</div>
+</div>
+</section>
+<!-- KANJI -->
+<section class="panel" data-layout="wide" data-panel="kanji" id="kanji-panel">
+<!-- Daily Mystery. Collapsed by default so it never displaces the library,
+         but at the top rather than buried below the results, because the whole
+         point of a daily is being a reason to open the application. -->
+<section class="card mystery-card" id="mystery-card">
+<button aria-controls="mystery-body" aria-expanded="false" class="mystery-strip" id="mystery-toggle" type="button">
+<span aria-hidden="true" class="mystery-mark">謎</span>
+<span class="mystery-strip-text">
+<b>오늘의 한자 수수께끼</b>
+<span class="hint" id="mystery-tagline">한자 하나, 단서 다섯 개로 정답을 맞혀 보세요.</span>
+</span>
+<span aria-hidden="true" class="mystery-strip-state" id="mystery-strip-state"></span>
+</button>
+<div aria-live="polite" class="mystery-body" hidden="" id="mystery-body"></div>
+</section>
+<div class="card kanji-toolbar">
+<div class="kanji-intro">
+<div>
+<span class="label">한자 도서관</span>
+<h2>한자 6,813자 탐색</h2>
+<p class="hint">한자를 검색하거나 구성 요소로 조합하고, 획수·독음·부수별로 탐색하세요. 한자 그룹을 학습하거나 부수 트리에서 자세히 볼 수 있습니다.</p>
+</div>
+<label class="kanji-search">
+<span class="label">검색</span>
+<input autocomplete="off" class="input" id="kanji-search" placeholder="한자, 뜻, 음독, 훈독" type="search"/>
+</label>
+</div>
+<div class="kanji-quick-row">
+<div class="kanji-filter-block">
+<span class="label">JLPT 등급</span>
+<div aria-label="Filter by JLPT level" class="kanji-levels" role="group">
+<button aria-pressed="true" class="btn kanji-level is-active" data-kanji-level="all" type="button">전체</button>
+<button aria-pressed="false" class="btn kanji-level" data-kanji-level="5" type="button">N5</button>
+<button aria-pressed="false" class="btn kanji-level" data-kanji-level="4" type="button">N4</button>
+<button aria-pressed="false" class="btn kanji-level" data-kanji-level="3" type="button">N3</button>
+<button aria-pressed="false" class="btn kanji-level" data-kanji-level="2" type="button">N2</button>
+<button aria-pressed="false" class="btn kanji-level" data-kanji-level="1" type="button">N1</button>
+<button aria-pressed="false" class="btn kanji-level" data-kanji-level="ungraded" type="button">미분류</button>
+</div>
+</div>
+<!-- Component lookup: the one way into this library that does not need
+           the learner to name the kanji first. Selected shapes intersect (see
+           js/component-lookup.js) and unusable ones are dimmed rather than
+           hidden, so the picker keeps its shape as the search narrows. -->
+<!-- The Shelf's first form, per IDEA_GARDEN.md section A: the favorites
+           set as a filter over the grid that already exists, before anything
+           bespoke is designed. -->
+<div class="kanji-quick-actions">
+<button aria-pressed="false" class="btn btn-ghost kanji-favorites" id="kanji-favorites" title="Show only the kanji you have kept" type="button">
+<span aria-hidden="true">♡</span> 즐겨찾기<span class="kanji-filter-count" hidden="" id="kanji-favorites-count"></span>
+</button>
+<button aria-controls="kanji-components" aria-expanded="false" class="btn btn-ghost kanji-components-toggle" id="kanji-components-toggle" type="button">
+<span>구성 요소로 찾기</span><span class="kanji-filter-count" hidden="" id="kanji-components-count"></span>
+</button>
+</div>
+</div>
+<div class="kanji-components" hidden="" id="kanji-components">
+<div class="kanji-components-head">
+<label class="label kanji-components-find">구성 요소 찾기
+            <input autocomplete="off" class="input" id="kanji-component-search" placeholder="모양 또는 뜻 — 木, 나무" type="search"/>
+</label>
+<div class="kanji-components-actions">
+<span class="hint" id="kanji-components-summary"></span>
+<button class="btn btn-ghost" disabled="" id="kanji-components-clear" type="button">구성 요소 초기화</button>
+</div>
+</div>
+<div aria-live="polite" class="kanji-components-selected" hidden="" id="kanji-components-selected"></div>
+<div aria-label="Filter by component" class="kanji-components-grid" id="kanji-components-grid" role="group"></div>
+<button class="btn btn-ghost kanji-more" hidden="" id="kanji-components-more" type="button">구성 요소 더 보기</button>
+</div>
+<button aria-controls="kanji-advanced-filters" aria-expanded="false" class="btn btn-ghost kanji-filter-toggle" id="kanji-filter-toggle" type="button">
+<span>상세 필터</span><span class="kanji-filter-count" hidden="" id="kanji-filter-count"></span>
+</button>
+<div class="kanji-filter-row" id="kanji-advanced-filters">
+<label class="label">획수
+          <select class="select" id="kanji-strokes">
+<option value="all">전체 획수</option>
+<option value="1-5">1–5</option>
+<option value="6-10">6–10</option>
+<option value="11-15">11–15</option>
+<option value="16-20">16–20</option>
+<option value="21+">21+</option>
+</select>
+</label>
+<label class="label">학습 상태
+          <select class="select" id="kanji-known">
+<option value="all">전체 학습 상태</option>
+<option value="unknown">미학습만</option>
+<option value="known">학습한 것만</option>
+</select>
+</label>
+<label class="label">정렬
+          <select class="select" id="kanji-sort">
+<option value="jlpt">JLPT 및 획수 순</option>
+<option value="strokes">획수 순</option>
+<option value="kanji">사전 순</option>
+<option value="meaning">뜻 순</option>
+</select>
+</label>
+<label class="label">보기
+          <select class="select" id="kanji-group">
+<option value="none">한자 카드</option>
+<option value="jlpt">JLPT별</option>
+<option value="strokes">획수 구간별</option>
+<option value="stroke-exact">동일 획수 그룹</option>
+<option value="on-reading">공통 음독 그룹</option>
+<option value="kun-reading">공통 훈독 그룹</option>
+<option value="radical">부수 그룹</option>
+<option value="component">공통 구성 요소 그룹</option>
+<option value="phonetic">음독 단서</option>
+<option value="contrast">유사 한자 비교</option>
+</select>
+</label>
+<button class="btn btn-ghost" id="kanji-reset" type="button">필터 초기화</button>
+</div>
+<div class="kanji-family-tools" hidden="" id="kanji-family-tools">
+<label class="label"><span id="kanji-family-label">한자 그룹</span>
+<select class="select" id="kanji-family"></select>
+</label>
+<p class="hint" id="kanji-family-summary"></p>
+<div class="kanji-family-actions">
+<button class="btn btn-primary" id="kanji-study-start" type="button">그룹 학습</button>
+<button class="btn btn-ghost" id="kanji-mix-open" type="button">그룹 혼합</button>
+</div>
+</div>
+</div>
+<section aria-live="polite" class="card kanji-study-workspace" hidden="" id="kanji-study-workspace"></section>
+<div class="kanji-results-head" id="kanji-results-head">
+<span class="hint" id="kanji-result-count"></span>
+<span class="hint">카드를 선택해 필기하고 구조를 분해하세요.</span>
+</div>
+<div id="kanji-results"></div>
+<button class="btn btn-ghost kanji-more" hidden="" id="kanji-more" type="button">더 보기</button>
+</section>
+<!-- RADICAL ALCHEMY -->
+<section class="panel" data-layout="wide" data-panel="alchemy" id="alchemy-panel">
+<section aria-live="polite" class="card kanji-alchemy-workspace" id="kanji-alchemy-workspace"></section>
+</section>
+<!-- RELATIONS -->
+<section class="panel relations-panel" data-layout="wide" data-panel="relations" id="relations-panel">
+<div class="card relations-toolbar">
+<div class="relations-intro">
+<div>
+<span class="label">한자 연결</span>
+<h2>한자 관계 탐색</h2>
+<p class="hint">각 연결선은 공통 부수, 구성 요소 또는 독음을 나타냅니다. 시작 한자를 선택하세요.</p>
+</div>
+<form class="relations-search" id="relations-search-form" role="search">
+<label class="label" for="relations-search">시작 한자 찾기</label>
+<div><input autocomplete="off" class="input" id="relations-search" placeholder="한자, 뜻, 음독, 훈독" type="search"/><button class="btn btn-primary" type="submit">탐색</button></div>
+</form>
+</div>
+<div aria-live="polite" class="relations-seed-results" id="relations-search-results"></div>
+<div class="relations-starts">
+<section><div class="relations-start-head"><h3>현재 텍스트에서</h3><span class="hint">읽는 중</span></div><div class="relations-seeds" id="relations-current"></div></section>
+<section><div class="relations-start-head"><h3>학습한 한자</h3><span class="hint">내 컬렉션</span></div><div class="relations-seeds" id="relations-known"></div></section>
+<section><div class="relations-start-head"><h3>발견</h3><button class="btn btn-ghost relations-surprise" data-relations-surprise="" type="button">랜덤 탐색</button></div><div class="relations-seeds" id="relations-discover"></div></section>
+</div>
+<div class="relations-filters" id="relations-filters">
+<fieldset>
+<legend class="label">연결 기준</legend>
+<label class="relations-kind"><input checked="" data-relations-kind="" type="checkbox" value="radical"/><span>부수</span></label>
+<label class="relations-kind"><input checked="" data-relations-kind="" type="checkbox" value="component"/><span>구성 요소</span></label>
+<label class="relations-kind"><input checked="" data-relations-kind="" type="checkbox" value="on-reading"/><span>음독</span></label>
+<label class="relations-kind"><input checked="" data-relations-kind="" type="checkbox" value="kun-reading"/><span>훈독</span></label>
+</fieldset>
+<label class="label">JLPT
+          <select class="select" id="relations-level">
+<option value="all">전체 등급</option><option value="5">N5</option><option value="4">N4</option><option value="3">N3</option><option value="2">N2</option><option value="1">N1</option><option value="ungraded">미분류</option>
+</select>
+</label>
+<label class="label">학습 범위
+          <select class="select" id="relations-state">
+<option value="all">전체 학습 상태</option><option value="unknown">미학습만</option><option value="known">학습한 것만</option><option value="text">현재 텍스트에 포함</option>
+</select>
+</label>
+<label class="label">주변 관계
+          <select class="select" id="relations-size">
+<option value="12">집중 · 12</option><option selected="" value="24">확장 · 24</option><option value="40">넓게 · 40</option>
+</select>
+</label>
+<button class="btn btn-ghost" id="relations-reset" type="button">필터 초기화</button>
+</div>
+<p aria-live="polite" class="relations-filter-summary hint" id="relations-filter-summary"></p>
+</div>
+<div aria-live="polite" class="relations-status hint" id="relations-status" role="status">이 탭을 열면 관계 데이터를 불러옵니다.</div>
+<div aria-label="Relationship view" class="relations-view-switch" role="group">
+<button aria-pressed="true" class="btn is-active" data-relations-view="map" type="button">주변 관계</button>
+<button aria-pressed="false" class="btn" data-relations-view="network" type="button">2단계 관계망</button>
+<button aria-pressed="false" class="btn" data-relations-view="atlas" type="button">별자리 관계도</button>
+</div>
+<div class="relations-map-host" id="relations-map-host"></div>
+<div class="relations-network-host" hidden="" id="relations-network-host"></div>
+<div class="relations-atlas-host" hidden="" id="relations-atlas-host"></div>
+</section>
+<!-- REVIEW -->
+<section class="panel" data-panel="review" id="review-panel">
+<div class="card study-weather" id="study-weather"></div>
+<div class="card srs-today">
+<div class="ui-section-header">
+<span class="ui-section-title">오늘</span>
+<span class="ui-section-line"></span>
+<label class="label inline">회차별 신규 카드
+          <select class="select" id="srs-new-limit">
+<option value="5">5</option>
+<option value="10">10</option>
+<option selected="" value="20">20</option>
+<option value="40">40</option>
+<option value="9999">전체</option>
+</select>
+</label>
+<label class="label inline">출제 방향
+          <select class="select" id="srs-direction">
+<option selected="" value="recognition">일본어 → 뜻</option>
+<option value="recall">뜻 → 일본어</option>
+<option value="cloze">문장 빈칸 채우기</option>
+</select>
+</label>
+</div>
+<div class="stat-row" id="srs-stats"></div>
+</div>
+<div class="card srs-stage" id="srs-stage"></div>
+<p class="hint">Scheduling is SM-2-lite: two learning steps (1 min, 10 min), then intervals grow by each card's ease. <kbd>Space</kbd> shows the answer / answers <em>보통</em>; <kbd>1</kbd>–<kbd>4</kbd> grade directly. Progress is stored in this browser only, alongside your deck.</p>
+</section>
+<!-- WORDS -->
+<section class="panel" data-panel="words" id="words-panel">
+<div class="card">
+<div class="ui-section-header">
+<span class="ui-section-title">학습함</span>
+<span class="ui-section-line"></span>
+<span class="hint" id="mw-known-count"></span>
+<button class="btn btn-ghost btn-danger-ghost" id="mw-clear-known" title="Unmark every known word and kanji. Only a backup file can bring them back">지우기</button>
+</div>
+<p class="hint">Marked "✓ Known" while reading. Personalizes the coverage meter and dims these in the Read tab.</p>
+<div class="label" style="margin-top:10px">단어</div>
+<div class="chips" id="mw-known-words"></div>
+<div class="label" style="margin-top:10px">한자</div>
+<div class="chips" id="mw-known-kanji"></div>
+</div>
+<div class="card">
+<div class="ui-section-header">
+<span class="ui-section-title">읽을 수 있는 단어</span>
+<span class="ui-section-line"></span>
+<span class="hint" id="mw-compound-count"></span>
+</div>
+<p class="hint">Compound words written entirely in kanji you have marked known — what those kanji combine into, rather than what they break down from. Tap any kanji to open its Radical Tree.</p>
+<div class="compound-list" id="mw-compounds"></div>
+</div>
+<div class="card">
+<div class="ui-section-header">
+<span class="ui-section-title">단어 검색</span>
+<span class="ui-section-line"></span>
+<span class="hint" id="wl-count"></span>
+</div>
+<p class="hint">Search the committed vocabulary by word, reading, or English meaning — the same way the Kanji library searches glyphs and readings. Readings match whether you type hiragana or katakana.</p>
+<div class="wl-controls">
+<input aria-label="Search vocabulary" autocomplete="off" class="input" id="wl-search" placeholder="学生 · がくせい · student" spellcheck="false" type="search"/>
+<select aria-label="Filter by JLPT level" class="select" id="wl-level" title="Show only words at one JLPT level">
+<option value="">전체 등급</option>
+<option value="5">N5</option>
+<option value="4">N4</option>
+<option value="3">N3</option>
+<option value="2">N2</option>
+<option value="1">N1</option>
+</select>
+<select aria-label="Filter by whether you can read it" class="select" id="wl-readable" title="Readable means every kanji in the word is one you have marked known">
+<option value="all">읽기 가능 여부</option>
+<option value="readable">읽을 수 있음</option>
+<option value="unreadable">아직 읽기 어려움</option>
+</select>
+<!-- Every dictionary entry whose own gloss says "counter for…" — a
+             plain read of committed data, not a curated top list. See
+             counterGloss() / hasCounterSense() in js/word-browser.js. -->
+<select aria-label="Filter by word kind" class="select" id="wl-kind" title="Only words whose dictionary gloss says “counter for…” — every one committed, not a curated top list">
+<option value="all">전체 단어</option>
+<option value="counter">조수사</option>
+</select>
+</div>
+<div class="compound-list" id="wl-results"></div>
+</div>
+<div class="card">
+<div class="ui-section-header">
+<span class="ui-section-title">혼동하기 쉬운 단어</span>
+<span class="ui-section-line"></span>
+</div>
+<div id="ff-museum"></div>
+</div>
+</section>
+<!-- DECK -->
+<section class="panel" data-panel="mywords" id="mywords-panel">
+<div class="card">
+<div class="ui-section-header">
+<span class="ui-section-title">저장한 단어장</span>
+<span class="ui-section-line"></span>
+<span class="hint" id="mw-deck-count"></span>
+<button class="btn btn-ghost btn-danger-ghost" id="mw-clear-deck" title="Delete every saved card and its review scheduling. Only a backup file can bring them back">지우기</button>
+</div>
+<p class="hint">Saved with "☆ Save" while reading. <strong>다음</strong> is when each card comes back in the <a class="go-review" href="#">복습</a> tab. Review-history totals are managed separately in <a class="go-profile" href="#">프로필 및 데이터</a>.</p>
+<div class="table-scroll">
+<table class="freq"><thead><tr><th>단어</th><th>뜻 및 예문</th><th>JLPT</th><th>다음</th><th></th></tr></thead>
+<tbody id="mw-deck-tbody"></tbody></table>
+</div>
+<div class="flash-controls" style="margin-top:12px">
+<button class="btn" id="mw-copy">TSV 복사</button>
+<button class="btn btn-primary" id="mw-download">TSV 다운로드</button>
+</div>
+<p class="hint">Fields: <code>word · reading · meaning · JLPT level · sentence</code> (tab-separated). Good for Anki — but it drops each card's schedule, so it isn't a backup. Use the backup below for that.</p>
+</div>
+<!-- The Shelf. Favorites span two types, so no single existing grid can show
+         them together — this is the one place the whole collection has an
+         address. Both halves reuse renderers that already exist rather than
+         inventing a bespoke layout. -->
+<section class="card shelf-card" id="shelf-card">
+<div class="ui-section-header">
+<span class="ui-section-title">즐겨찾기</span>
+<span class="ui-section-line"></span>
+<span class="hint" id="shelf-count"></span>
+</div>
+<p class="hint">Kanji and words you kept because you liked them. Nothing here is scheduled, counted, or asked about later — it is the one collection in Kotoba Lab that is not about progress. Favorites travel in your profile backup.</p>
+<div id="shelf-body"></div>
+</section>
+<div class="card study-pack-card">
+<div class="ui-section-header">
+<span class="ui-section-title">공유용 학습 묶음</span>
+<span class="ui-section-line"></span>
+<span class="hint">개인 기록 없이 한자 공유</span>
+</div>
+<p class="hint">Turn the current text, a selected Kanji family, or the open Relations network into a lightweight pack. Packs include dictionary metadata only—never schedules, known state, review history, pasted text, or saved sentences.</p>
+<div class="study-pack-builder">
+<label class="label">출처
+          <select class="select" id="study-pack-source"><option value="text">현재 텍스트의 한자</option><option value="family">선택한 한자 그룹</option><option value="relations">현재 관계망</option></select>
+</label>
+<label class="label">학습 묶음 제목<input class="input" id="study-pack-title" maxlength="80" placeholder="내 한자 학습 묶음" type="text"/></label>
+</div>
+<p class="study-pack-source-status hint" id="study-pack-source-status"></p>
+<div class="profile-actions">
+<button class="btn btn-primary" id="study-pack-download" title="Download kanji dictionary metadata only — never your progress, known state, or pasted text" type="button">학습 묶음 다운로드</button>
+<label class="file-btn btn">학습 묶음 열기<input accept=".json,application/json" hidden="" id="study-pack-file" type="file"/></label>
+</div>
+<section aria-live="polite" class="profile-import-preview" hidden="" id="study-pack-preview">
+<div class="profile-preview-head"><div><span class="label">학습 묶음</span><h3 id="study-pack-preview-title">한자 학습 묶음</h3></div><button class="btn btn-ghost" id="study-pack-cancel" type="button">취소</button></div>
+<p class="hint" id="study-pack-preview-meta"></p>
+<div class="study-pack-glyphs" id="study-pack-glyphs" lang="ja"></div>
+<div class="profile-import-actions"><button class="btn btn-primary" id="study-pack-start" type="button">이 묶음 학습</button></div>
+<p class="hint">The session opens in Kanji and lasts only until you close or reload it. Marking individual kanji known still uses your normal local profile.</p>
+</section>
+</div>
+</section>
+<section class="panel" data-panel="profile" id="profile-panel">
+<div class="card profile-data-card">
+<div class="ui-section-header">
+<span class="ui-section-title">프로필 및 데이터</span>
+<span class="ui-section-line"></span>
+<span class="hint" id="mw-backup-count"></span>
+</div>
+<p class="hint">Your local study profile includes saved cards and scheduling, known words and kanji, your favorites, review history, and sentence context saved with cards. It never includes the text currently in the editor.</p>
+<div aria-label="Local profile summary" class="profile-summary" id="profile-summary"></div>
+<section aria-labelledby="profile-dashboard-title" class="profile-dashboard">
+<div class="profile-dashboard-head"><div><span class="label">로컬 데이터 현황</span><h3 id="profile-dashboard-title">브라우저 데이터 관리</h3></div><span class="badge" data-status="stable" id="profile-health">정상</span></div>
+<p class="hint" id="profile-health-detail"></p>
+<div class="profile-categories" id="profile-categories"></div>
+<div class="profile-reset-zone">
+<div><strong>모든 로컬 데이터 초기화</strong><p class="hint">Clears cards, known items, schedules, review history, and the optional usage journal from this browser.</p></div>
+<button class="btn btn-ghost profile-replace" id="profile-reset-open" title="Erase all local study data. Requires typing a confirmation phrase" type="button">초기화 시작</button>
+</div>
+<section class="profile-reset-confirm" hidden="" id="profile-reset-confirm">
+<label for="profile-reset-phrase">Type <strong>RESET KOTOBA LAB</strong> to confirm.</label>
+<div><input autocomplete="off" class="input" id="profile-reset-phrase" spellcheck="false" type="text"/><button class="btn btn-primary" disabled="" id="profile-reset-apply" type="button">모두 초기화</button><button class="btn btn-ghost" id="profile-reset-cancel" type="button">취소</button></div>
+</section>
+</section>
+<section aria-labelledby="offline-store-title" class="offline-store">
+<div class="usage-journal-head">
+<div><span class="label">설치 가능 · 오프라인 지원</span><h3 id="offline-store-title">오프라인 사용 가능 여부</h3></div>
+<span class="badge" data-status="archive" id="offline-store-status">확인 중…</span>
+</div>
+<p class="hint">Kotoba Lab stores its own application files so it opens without a connection. This is separate from your study data and is never included in a profile backup.</p>
+<div class="offline-rows" id="offline-rows"></div>
+</section>
+<div class="profile-actions">
+<button class="btn btn-primary" id="mw-backup-download" title="Download every saved card, schedule, known word and kanji, favorite, and review history as one JSON file">프로필 다운로드 (.json)</button>
+<label class="file-btn btn">가져올 프로필 선택<input accept=".json,application/json" hidden="" id="mw-backup-file" type="file"/></label>
+</div>
+<section aria-live="polite" class="profile-import-preview" hidden="" id="profile-import-preview">
+<div class="profile-preview-head"><div><span class="label">가져오기 미리보기</span><h3 id="profile-import-name">Kotoba Lab profile</h3></div><button class="btn btn-ghost" id="profile-import-cancel" type="button">취소</button></div>
+<p class="hint" id="profile-import-meta"></p>
+<div class="profile-summary" id="profile-import-counts"></div>
+<p class="profile-import-impact" id="profile-import-impact"></p>
+<div class="profile-import-actions">
+<button class="btn btn-primary" id="profile-import-merge" type="button">안전하게 병합</button>
+<button class="btn btn-ghost profile-replace" id="profile-import-replace" type="button">로컬 프로필 교체</button>
+</div>
+<p class="hint"><strong>안전하게 병합</strong> adds missing data and keeps the most recently studied schedule. Replace deletes the current local profile first.</p>
+</section>
+<p class="hint">Importing never changes anything until you approve the preview. The recommended merge is repeat-safe: importing the same profile twice does not duplicate progress.</p>
+</div>
+<p class="hint app-version" id="app-version"></p>
+</section>
+<section class="panel" data-panel="insights" id="insights-panel">
+<div class="card">
+<section aria-labelledby="usage-journal-title" class="usage-journal">
+<div class="usage-journal-head">
+<div><span class="label">선택 사항 · 기기 내부 저장</span><h3 id="usage-journal-title">사용 기록</h3></div>
+<span class="badge" data-status="archive" id="usage-journal-status">일시 중지</span>
+</div>
+<p class="hint">See how you actually use Kotoba Lab before choosing the next feature. When enabled, it keeps only daily totals for sessions, visible active minutes, and coarse actions such as opening a tab, tree, study session, or review answer.</p>
+<div aria-label="Local usage summary" class="profile-summary" id="usage-journal-summary"></div>
+<p class="hint" id="usage-journal-detail"></p>
+<section aria-labelledby="usage-insights-title" class="usage-insights">
+<div class="usage-insights-head"><div><span class="label">GROUP B · FRICTION RADAR</span><h4 id="usage-insights-title">학습 패턴 분석</h4></div><span class="hint">패턴 분석이며 평가가 아닙니다</span></div>
+<div aria-label="Feature activity mix" class="usage-feature-mix" id="usage-feature-mix"></div>
+<div aria-live="polite" class="usage-friction-signals" id="usage-friction-signals"></div>
+<p class="hint">Suggestions use only the totals above plus your current due-card count. They cannot see what you studied or why you chose an action.</p>
+</section>
+<section aria-labelledby="usage-report-title" class="usage-report">
+<div class="usage-report-head"><div><span class="label">GROUP C · SHAREABLE SNAPSHOT</span><h4 id="usage-report-title">Bring the pattern into our next conversation</h4></div><span aria-hidden="true">文</span></div>
+<p class="hint">Preview, copy, or download a readable Markdown report. It includes the aggregate rhythm and profile totals shown here—not the raw journal or anything you studied.</p>
+<div class="profile-actions">
+<button aria-controls="usage-report-preview" aria-expanded="false" class="btn btn-ghost" id="usage-report-toggle" type="button">보고서 미리보기</button>
+<button class="btn" id="usage-report-copy" type="button">마크다운 복사</button>
+<button class="btn btn-primary" id="usage-report-download" type="button">MD 다운로드</button>
+</div>
+<pre class="usage-report-preview" hidden="" id="usage-report-preview" tabindex="-1"><code id="usage-report-content"></code></pre>
+</section>
+<div class="usage-journal-privacy">
+<span aria-hidden="true">守</span>
+<p><strong>학습 내용은 기록되지 않습니다.</strong> Never pasted text, words, kanji, searches, filenames, answers, grades, or timestamps for individual actions. Nothing is transmitted or included in profile backups.</p>
+</div>
+<div class="profile-actions">
+<button class="btn btn-primary" id="usage-journal-toggle" title="Record daily counts of sessions, active minutes, and coarse actions in this browser only. Never study content, never transmitted" type="button">사용 기록 켜기</button>
+<button class="btn btn-ghost" disabled="" id="usage-journal-clear" type="button">사용 기록 초기화</button>
+</div>
+</section>
+</div>
+</section>
+<section class="panel" data-panel="achievements" id="achievements-panel">
+<div class="card achievements-card">
+<div class="ui-section-header">
+<span class="ui-section-title">업적</span>
+<span class="ui-section-line"></span>
+</div>
+<p class="hint">Every badge here fires from something you actually did — kanji known, words
+      read, cards saved, days reviewed. Once earned, it's yours for good.</p>
+<div aria-live="polite" id="achievements-content"></div>
+</div>
+</section>
+</main>
+<footer class="wrap site-foot">
+<p>Browser-only · no account · no AI. Tokenizer: instant dictionary longest-match, or precise kuromoji (vendored, loads once). Data: <a href="data/ATTRIBUTION.md">Kanjium / EDRDG (CC BY-SA 4.0) + KanjiVG (CC BY-SA 3.0)</a>.</p>
+</footer>
+<div class="ui-toast" id="toast"></div>
+<div class="sw-update" hidden="" id="sw-update" role="status">
+<span>새 버전이 준비되었습니다.</span>
+<button class="btn btn-primary" id="sw-update-reload" type="button">새로고침</button>
+</div>
+<script src="js/ko-ui.js"></script><script src="js/app.js" type="module"></script>
+</body>
+</html>
