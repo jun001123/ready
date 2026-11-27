@@ -1,0 +1,164 @@
+// storage.js — client-side persistence for the study deck and known-word/kanji
+// sets. localStorage only: no account, no sync, no server. Falls back to an
+// in-memory Map/Set (silently, for the session only) if localStorage is
+// unavailable (private browsing, sandboxed iframe, etc.) so the app never
+// throws — it just won't remember next time.
+
+const PREFIX = 'kotoba-lab-kr:';
+
+function readJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(PREFIX + key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function writeJSON(key, value) {
+  try {
+    localStorage.setItem(PREFIX + key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false; // storage unavailable/full — caller keeps working in memory
+  }
+}
+
+// A persisted set of strings (known words / known kanji).
+export function createKnownSet(key) {
+  let items = new Set(readJSON(key, []));
+  const persist = () => writeJSON(key, [...items]);
+  // Same reasoning as createDeck's `sorted` cache below: callers commonly
+  // call all() twice in a row (once for .length, once to .map() it), and
+  // this stays valid until the next mutation below.
+  let list = null;
+  const invalidate = () => { list = null; };
+  return {
+    has: (s) => items.has(s),
+    toggle(s) {
+      const now = !items.has(s);
+      if (now) items.add(s); else items.delete(s);
+      invalidate();
+      persist();
+      return now;
+    },
+    count: () => items.size,
+    all: () => list || (list = [...items]),
+    // Overwrite wholesale — used to write back a merged backup (see backup.js).
+    // The merging happens there; this just lands the result in one write.
+    replaceAll(newList) { items = new Set(newList); invalidate(); persist(); },
+    clear() { items = new Set(); invalidate(); persist(); },
+  };
+}
+
+// A persisted study deck: surface -> {surface, reading, gloss, level, savedAt,
+// srs}. `srs` is the spaced-repetition card (see srs.js); entries written
+// before v5 simply don't have it and srs.cardOf() treats them as new.
+export function createDeck(key) {
+  let entries = new Map(Object.entries(readJSON(key, {})));
+  const persist = () => writeJSON(key, Object.fromEntries(entries));
+  // all() is called several times per render pass (refreshReview,
+  // renderReviewStats, renderMyWords, …), and re-sorting the whole deck each
+  // time is pure waste when nothing changed since the last call. Every
+  // mutator below goes through this same closure, so invalidating the cache
+  // there is exhaustive — there's no other way for `entries` to change.
+  let sorted = null;
+  const invalidate = () => { sorted = null; };
+  return {
+    has: (surface) => entries.has(surface),
+    get: (surface) => entries.get(surface) || null,
+    toggle(entry) {
+      const now = !entries.has(entry.surface);
+      if (now) entries.set(entry.surface, { ...entry, savedAt: Date.now() });
+      else entries.delete(entry.surface);
+      invalidate();
+      persist();
+      return now;
+    },
+    // Merge a patch into one entry (used to write back a graded srs card).
+    update(surface, patch) {
+      const prev = entries.get(surface);
+      if (!prev) return null;
+      const next = { ...prev, ...patch };
+      entries.set(surface, next);
+      invalidate();
+      persist();
+      return next;
+    },
+    remove(surface) { entries.delete(surface); invalidate(); persist(); },
+    count: () => entries.size,
+    all: () => sorted || (sorted = [...entries.values()].sort((a, b) => b.savedAt - a.savedAt)),
+    replaceAll(list) { entries = new Map(list.map((e) => [e.surface, e])); invalidate(); persist(); },
+    clear() { entries = new Map(); invalidate(); persist(); },
+  };
+}
+
+// A persisted per-day tally of answered cards: 'YYYY-MM-DD' (local) -> count.
+// Backs the "reviewed today" figure and the study streak.
+export function createReviewLog(key, keepDays = 90) {
+  let days = readJSON(key, {});
+  const dayKey = (d = new Date()) => d.toLocaleDateString('en-CA'); // YYYY-MM-DD, local
+  const prune = () => {
+    const keys = Object.keys(days).sort();
+    for (const k of keys.slice(0, Math.max(0, keys.length - keepDays))) delete days[k];
+  };
+  const persist = () => writeJSON(key, days);
+  return {
+    record(n = 1) {
+      const k = dayKey();
+      days[k] = (days[k] || 0) + n;
+      prune();
+      persist();
+    },
+    today: () => days[dayKey()] || 0,
+    // Consecutive days ending today — a day with no reviews yet doesn't break
+    // the streak until it's over, so counting starts at yesterday if today is 0.
+    streak() {
+      const cursor = new Date();
+      if (!days[dayKey(cursor)]) cursor.setDate(cursor.getDate() - 1);
+      let n = 0;
+      while (days[dayKey(cursor)]) {
+        n += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      return n;
+    },
+    // Days between the most recently recorded day and today, or null if
+    // nothing has ever been recorded. 0 means today already has an entry.
+    daysSinceLast() {
+      const keys = Object.keys(days);
+      if (!keys.length) return null;
+      const last = keys.sort().at(-1); // 'YYYY-MM-DD' sorts lexicographically = chronologically
+      const [y, m, d] = last.split('-').map(Number);
+      const lastLocal = new Date(y, m - 1, d);
+      const today = new Date();
+      const todayLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      return Math.round((todayLocal - lastLocal) / 86400000);
+    },
+    all: () => ({ ...days }),
+    replaceAll(next) { days = { ...next }; prune(); persist(); },
+    clear() { days = {}; persist(); },
+  };
+}
+
+// A persisted achievement ledger: id -> unlock timestamp (ms). Once an id is
+// recorded it is never overwritten — first-earned wins, so re-evaluating the
+// same achievement on every Achievements-tab render never loses the original
+// unlock time. Unknown ids (a future catalog change) are simply carried along
+// unused rather than dropped, so an earlier version's earned data is never
+// destroyed by a newer one that trims the catalog.
+export function createAchievementLog(key) {
+  let unlocked = readJSON(key, {});
+  const persist = () => writeJSON(key, unlocked);
+  return {
+    has: (id) => id in unlocked,
+    record(id, at = Date.now()) {
+      if (id in unlocked) return false;
+      unlocked[id] = at;
+      persist();
+      return true;
+    },
+    all: () => ({ ...unlocked }),
+    replaceAll(next) { unlocked = { ...next }; persist(); },
+    clear() { unlocked = {}; persist(); },
+  };
+}
